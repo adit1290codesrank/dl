@@ -18,13 +18,13 @@ Dense::Dense(int input_size,int output_size):input_size(input_size),output_size(
 
     for(int i=0;i<input_size*output_size;i++) h_w[i]=dist(gen);
 
-    w=Tensor::upload(h_w,output_size,input_size);
-    b=Tensor::upload(h_b,output_size,1);
+    w=Tensor::upload(h_w,input_size,output_size);
+    b=Tensor::upload(h_b,1,output_size);
 
-    mw=Tensor::zeros(output_size,input_size);
-    vw=Tensor::zeros(output_size,input_size);
-    mb=Tensor::zeros(output_size,1);
-    vb=Tensor::zeros(output_size,1);
+    mw=Tensor::zeros(input_size,output_size);
+    vw=Tensor::zeros(input_size,output_size);
+    mb=Tensor::zeros(1,output_size);
+    vb=Tensor::zeros(1,output_size);
 }
 
 Tensor Dense::forward(const Tensor& input)

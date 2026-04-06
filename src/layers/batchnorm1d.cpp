@@ -13,8 +13,8 @@ BatchNorm1D::BatchNorm1D(int features,float e,float m):features(features),e(e),m
 {
     std::vector<float> ones(features,1.0f);
 
-    g=Tensor::upload(ones,features,1);
-    b=Tensor::zeros(features,1);
+    g=Tensor::upload(ones,1,features);
+    b=Tensor::zeros(1,features);
 
     mg=Tensor::zeros(1,features);
     vg=Tensor::zeros(1,features);
