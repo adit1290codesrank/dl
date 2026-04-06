@@ -66,8 +66,7 @@ void Dense::load(std::ifstream& is)
     is.read(reinterpret_cast<char*>(h_w.data()),h_w.size()*sizeof(float));
     is.read(reinterpret_cast<char*>(h_b.data()),h_b.size()*sizeof(float));
 
-    this->w=Tensor::upload(h_w,this->output_size,this->input_size);
-    this->b=Tensor::upload(h_b,this->output_size,1);
+    this->w=Tensor::upload(h_w,this->input_size,this->output_size);
+    this->b=Tensor::upload(h_b, 1, this->output_size); 
 }
-
 
