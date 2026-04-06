@@ -7,6 +7,8 @@ Tensor matrix_multiply(const Tensor& A,bool transA,const Tensor& B,bool transB);
 void im2col_cuda(const Tensor& im,int k_h,int k_w,int s,int p,int h_out,int w_out,Tensor& m);
 void col2im_cuda(const Tensor& m,int k_h,int k_w,int s,int p,int h_out,int w_out,Tensor& im);
 
+Tensor::Tensor():d_ptr(nullptr),shape({}) {}
+
 Tensor::Tensor(int r,int c)
 {
     this->shape={r,c};
@@ -124,7 +126,12 @@ Tensor Tensor::col2im(const std::vector<int>& shape,int k_h,int k_w,int s,int p)
 }
 
 
-
+Tensor Tensor::clone() const
+{
+    Tensor t(this->shape);
+    cudaMemcpy(t.data(),this->data(),this->total_elements()*sizeof(float),cudaMemcpyDeviceToDevice);
+    return t;
+}
 
 
 

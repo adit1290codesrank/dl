@@ -18,6 +18,7 @@ class Tensor
             return total;
         }
         
+        Tensor();
         Tensor(int rows, int cols);
         Tensor(std::vector<int> shape);
 
@@ -35,5 +36,6 @@ class Tensor
         static Tensor zeros(int r,int c);
         Tensor operator*(const Tensor& other) const;
         Tensor slice(int start_row,int num_rows) const;
+        Tensor clone() const;
         size_t total_elements() const;
 };

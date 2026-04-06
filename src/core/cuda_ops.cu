@@ -101,7 +101,307 @@ __global__ void col2im_kernel(const float* m,int n,int h,int w,int cin,int k_h,i
     }
 }
 
-void im2col(const Tensor& im,int k_h,int k_w,int s,int p,int h_out,int w_out,Tensor& m)
+
+
+/*
+MSE Kernel.
+Error=1/N*sum((y_-y)^2)
+dError/dy=2/N*(y_-y)
+*/
+__global__ void mse_kernel(const float* y_,const float* y, float* dy,int size)
+{
+    int index=blockIdx.x*blockDim.x+threadIdx.x;
+    if(index<size) dy[index]=2.0f*(y_[index]-y[index])/(float)size;
+}
+
+__global__ void mse_loss_kernel(const float* y_,const float* y, float* loss,int size)
+{
+    int index=blockIdx.x*blockDim.x+threadIdx.x;
+    if(index<size) atomicAdd(loss, (y_[index]-y[index])*(y_[index]-y[index])/(float)size);
+}
+
+/*
+Cross Entropy Kernel.
+Error=-1/N*sum(y_*log(y))
+dError/dy=-1/N*(y_/y)
+*/
+__global__ void cross_entropy_kernel(const float* y_, const float* y, float* dy,int size,int n)
+{
+    int index=blockIdx.x*blockDim.x+threadIdx.x;
+    if(index<size) dy[index]=(y_[index]-y[index])/(float)n;
+}
+
+__global__ void cross_entropy_loss_kernel(const float* y_, const float* y, float* loss, int size, int n)
+{
+    int index=blockIdx.x*blockDim.x+threadIdx.x;
+    if(index<size) atomicAdd(loss, -y[index]*logf(y_[index]+1e-7f)/(float)n);
+}
+
+__global__ void add_bias_kernel(float* Y,float* b,int n,int m)
+{
+    int index=blockIdx.x*blockDim.x+threadIdx.x;
+    int total=n*m;
+    if(index<total) Y[index]+=b[index%m];
+}
+
+__global__ void sum_rows_kernel(const float* dY,float* db,int n,int m)
+{
+    int index=blockIdx.x*blockDim.x+threadIdx.x;
+    if(index<m)
+    {
+        float sum=0.0f;
+        for(int i=0;i<n;i++) sum+=dY[i*m+index];
+        db[index]=sum;
+    }
+}
+
+__global__ void adam_kernel(float* w,const float* grad,float* m,float* v,float lr,int t,int size) 
+{
+    int idx=blockIdx.x*blockDim.x+threadIdx.x;
+    if(idx<size) 
+    {
+        float g=grad[idx];
+        
+        float mt=0.9f*m[idx]+(1.0f-0.9f)*g;
+        float vt=0.999f*v[idx]+(1.0f-0.999f)*g*g;
+        
+        m[idx]=mt;
+        v[idx]=vt;
+        
+        mt=mt/(1.0f-powf(0.9f,t));
+        vt=vt/(1.0f-powf(0.999f, t));
+        
+        w[idx]-=lr*mt/(sqrtf(vt)+1e-8f);
+    }
+}
+
+__global__ void leaky_relu_forward_kernel(float* Y,float alpha,int size)
+{
+    int index=blockIdx.x*blockDim.x+threadIdx.x;
+    if(index<size) Y[index]=Y[index]>0.0f?Y[index]:alpha*Y[index];
+}
+
+__global__ void leaky_relu_backward_kernel(const float* dY,const float* cached_X,float* dX,float alpha,int size)
+{
+    int index=blockIdx.x*blockDim.x+threadIdx.x;
+    if(index<size) dX[index]=cached_X[index]>0.0f?dY[index]:alpha*dY[index];
+}
+
+__global__ void softmax_kernel(const float* X,float* Y,int n,int m)
+{
+    int index=blockDim.x*blockIdx.x+threadIdx.x;
+    if(index<n)
+    {
+        int row_start=index*m;
+        float max_val=X[row_start];
+        for(int i=1;i<m;i++) if(X[row_start+i]>max_val) max_val=X[row_start+i];
+
+        float sum=0.0f;
+        for(int i=0;i<m;i++)
+        {
+            Y[row_start+i]=expf(X[row_start+i]-max_val);
+            sum+=Y[row_start+i];
+        }
+        for(int i=0;i<m;i++) Y[row_start+i]/=sum;
+    }
+}
+
+__global__ void bn_backward_gamma_beta_kernel(const float* dY, const float* x_hat, float* d_gamma, float* d_beta, int N, int C) 
+{
+    int col = blockIdx.x * blockDim.x + threadIdx.x; 
+    
+    if (col < C) {
+        float sum_dgamma = 0.0f;
+        float sum_dbeta = 0.0f;
+        
+        for (int row = 0; row < N; row++) {
+            int idx = row * C + col;
+            sum_dgamma += dY[idx] * x_hat[idx];
+            sum_dbeta += dY[idx];
+        }
+        
+        d_gamma[col] = sum_dgamma;
+        d_beta[col] = sum_dbeta;
+    }
+}
+
+
+__global__ void bn_backward_x_kernel(const float* dY, const float* x_hat, const float* var, const float* gamma, const float* d_gamma, const float* d_beta, float* dX, float eps, int N, int C) 
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total_elements = N * C;
+
+    if (idx < total_elements) {
+        int col = idx % C; 
+        
+        float inv_std = 1.0f / sqrtf(var[col] + eps);
+        float norm_dgamma = d_gamma[col] / N;
+        float norm_dbeta = d_beta[col] / N;
+        
+        dX[idx] = gamma[col] * inv_std * (dY[idx] - norm_dbeta - x_hat[idx] * norm_dgamma);
+    }
+}
+
+__global__ void compute_batch_stats_kernel(const float* x, float* mean, float* var, int N, int C) 
+{
+    __shared__ float s_sum[BLOCK_SIZE];
+    __shared__ float s_sq_sum[BLOCK_SIZE];
+
+    int col = blockIdx.x; 
+    int tid = threadIdx.x;
+
+    if (col >= C) return;
+
+    float local_sum = 0.0f;
+    float local_sq_sum = 0.0f;
+
+    for (int row = tid; row < N; row += blockDim.x) 
+    {
+        float val = x[row * C + col];
+        local_sum += val;
+        local_sq_sum += val * val;
+    }
+
+    s_sum[tid] = local_sum;
+    s_sq_sum[tid] = local_sq_sum;
+    __syncthreads();
+
+    for (int s = blockDim.x / 2; s > 0; s >>= 1) 
+    {
+        if (tid < s) 
+        {
+            s_sum[tid] += s_sum[tid + s];
+            s_sq_sum[tid] += s_sq_sum[tid + s];
+        }
+        __syncthreads();
+    }
+
+    if (tid == 0) 
+    {
+        float m = s_sum[0] / N;
+        mean[col] = m;
+        float v = (s_sq_sum[0] / N) - (m * m);
+        var[col] = (v < 0.0f) ? 0.0f : v; 
+    }
+}
+
+__global__ void apply_batchnorm_kernel(const float* x, const float* mean, const float* var, const float* gamma, const float* beta, float* x_hat, float* out, float eps, int N, int C) 
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x; 
+    int total_elements = N * C;
+
+    if (idx < total_elements) {
+        int col = idx % C; 
+
+        float normalized = (x[idx] - mean[col]) / sqrtf(var[col] + eps);
+        x_hat[idx] = normalized;
+
+        out[idx] = gamma[col] * normalized + beta[col];
+    }
+}
+
+__global__ void update_running_stats_kernel(float* r_mean, float* r_var, const float* b_mean, const float* b_var, float momentum, int C) 
+{
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+    if (col < C) {
+        r_mean[col] = (1.0f - momentum) * r_mean[col] + momentum * b_mean[col];
+        r_var[col] = (1.0f - momentum) * r_var[col] + momentum * b_var[col];
+    }
+}
+
+void batchnorm_forward_cuda(const Tensor& dY, const Tensor& x_hat, Tensor& d_gamma, Tensor& d_beta) 
+{
+    int threads = 256;
+    int blocks = (dY.cols() + threads - 1) / threads;
+    bn_backward_gamma_beta_kernel<<<blocks, threads>>>(dY.data(), x_hat.data(), d_gamma.data(), d_beta.data(), dY.rows(), dY.cols());
+}
+
+void batchnorm_backward_cuda(const Tensor& dY, const Tensor& x_hat, const Tensor& var, const Tensor& gamma, const Tensor& d_gamma, const Tensor& d_beta, Tensor& dX, float epsilon) 
+{
+    int total_elements = dY.rows() * dY.cols();
+    int threads = 256;
+    int blocks = (total_elements + threads - 1) / threads;
+    bn_backward_x_kernel<<<blocks, threads>>>(dY.data(), x_hat.data(), var.data(), gamma.data(), d_gamma.data(), d_beta.data(), dX.data(), epsilon, dY.rows(), dY.cols());
+}
+
+void compute_batch_stats_cuda(const Tensor& input, Tensor& mean, Tensor& var) 
+{
+    int N = input.rows(); 
+    int C = input.cols(); 
+
+    dim3 blocks(C);
+    dim3 threads(BLOCK_SIZE);
+
+    compute_batch_stats_kernel<<<blocks, threads>>>(input.data(), mean.data(), var.data(), N, C);
+    
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        printf("Kernel error in compute_batch_stats: %s\n", cudaGetErrorString(err));
+    }
+}
+
+void batchnorm_cuda(const Tensor& x, const Tensor& mean, const Tensor& var, const Tensor& gamma, const Tensor& beta, Tensor& x_hat, Tensor& output, float epsilon) 
+{
+    int total_elements = x.rows() * x.cols();
+    int threads = 256;
+    int blocks = (total_elements + threads - 1) / threads;
+    apply_batchnorm_kernel<<<blocks, threads>>>(x.data(), mean.data(), var.data(), gamma.data(), beta.data(), x_hat.data(), output.data(), epsilon, x.rows(), x.cols());
+}
+
+void update_running_stats_cuda(Tensor& r_mean, Tensor& r_var, const Tensor& b_mean, const Tensor& b_var, float momentum) 
+{
+    int threads = 256;
+    int blocks = (r_mean.cols() + threads - 1) / threads;
+    update_running_stats_kernel<<<blocks, threads>>>(r_mean.data(), r_var.data(), b_mean.data(), b_var.data(), momentum, r_mean.cols());
+}
+
+void softmax_cuda(const Tensor& X,Tensor& Y)
+{
+    int threads=BLOCK_SIZE;
+    int blocks=(X.rows()+threads-1)/threads;
+    softmax_kernel<<<blocks,threads>>>(X.data(),Y.data(),X.rows(),X.cols());
+}
+
+void leaky_relu_forward_cuda(Tensor& Y,float alpha)
+{
+    int size=Y.rows()*Y.cols();
+    int threads=BLOCK_SIZE;
+    int blocks=(size+threads-1)/threads;
+    leaky_relu_forward_kernel<<<blocks,threads>>>(Y.data(),alpha,size);
+}
+
+void leaky_relu_backward_cuda(const Tensor& dY,const Tensor& cached_X,Tensor& dX,float alpha)
+{
+    int size=dY.rows()*dY.cols();
+    int threads=BLOCK_SIZE;
+    int blocks=(size+threads-1)/threads;
+    leaky_relu_backward_kernel<<<blocks,threads>>>(dY.data(),cached_X.data(),dX.data(),alpha,size);
+}
+
+void adam_cuda(Tensor& W,const Tensor& grad,Tensor& m,Tensor& v,float lr,int t,int size)
+{
+    int threads=BLOCK_SIZE;
+    int blocks=(size+threads-1)/threads;
+    adam_kernel<<<blocks,threads>>>(W.data(),grad.data(),m.data(),v.data(),lr,t,size);
+}
+
+void sum_rows_cuda(const Tensor& dY, Tensor& db)
+{
+    int total=dY.cols();
+    int threads=BLOCK_SIZE;
+    int blocks=(total+threads-1)/threads;
+    sum_rows_kernel<<<blocks,threads>>>(dY.data(),db.data(),dY.rows(),dY.cols());
+}
+
+void add_bias_cuda(Tensor& Y, const Tensor& b)
+{
+    int total=Y.total_elements();
+    int threads=BLOCK_SIZE;
+    int blocks=(total+threads-1)/threads;
+    add_bias_kernel<<<blocks,threads>>>(Y.data(),b.data(),Y.rows(),Y.cols());
+}
+
+void im2col_cuda(const Tensor& im,int k_h,int k_w,int s,int p,int h_out,int w_out,Tensor& m)
 {
     int total=im.shape[0]*h_out*w_out*im.shape[3]*k_h*k_w;
     int threads=BLOCK_SIZE;
@@ -110,11 +410,61 @@ void im2col(const Tensor& im,int k_h,int k_w,int s,int p,int h_out,int w_out,Ten
     im2col_kernel<<<blocks,threads>>>(im.data(),im.shape[0],im.shape[1],im.shape[2],im.shape[3],k_h,k_w,s,p,h_out,w_out,m.data());
 }
 
-void col2im(const Tensor& m,int k_h,int k_w,int s,int p,int h_out,int w_out,Tensor& im)
+void col2im_cuda(const Tensor& m,int k_h,int k_w,int s,int p,int h_out,int w_out,Tensor& im)
 {
     int total=im.shape[0]*h_out*w_out*im.shape[3]*k_h*k_w;
     int threads=BLOCK_SIZE;
     int blocks=(total+threads-1)/threads;
     cudaMemset(im.data(),0,im.rows()*im.cols()*sizeof(float));
     col2im_kernel<<<blocks,threads>>>(m.data(),im.shape[0],im.shape[1],im.shape[2],im.shape[3],k_h,k_w,s,p,h_out,w_out,im.data());
+}
+
+void mse_cuda(const Tensor& y_,const Tensor& y,Tensor& dy)
+{
+    int size=y.rows()*y.cols();
+    int threads=BLOCK_SIZE;
+    int blocks=(size+threads-1)/threads;
+    mse_kernel<<<blocks,threads>>>(y_.data(),y.data(),dy.data(),size);
+}   
+
+void cross_entropy_cuda(const Tensor& y_, const Tensor& y, Tensor& dy)
+{
+    int size=y.rows()*y.cols();
+    int threads=BLOCK_SIZE;
+    int blocks=(size+threads-1)/threads;
+    cross_entropy_kernel<<<blocks,threads>>>(y_.data(),y.data(),dy.data(),size,y_.rows());
+}
+
+float mse_loss_cuda(const Tensor& y_,const Tensor& y,Tensor& loss)
+{
+    float* d_loss=loss.data();
+    cudaMemset(d_loss,0,sizeof(float));
+
+    int size=y.rows()*y.cols();
+    int threads=BLOCK_SIZE;
+    int blocks=(size+threads-1)/threads;
+    mse_loss_kernel<<<blocks,threads>>>(y_.data(),y.data(),d_loss,size);
+
+    cudaDeviceSynchronize();
+
+    float h_loss=0.0f;
+    cudaMemcpy(&h_loss,d_loss,sizeof(float),cudaMemcpyDeviceToHost);
+    return h_loss;
+}
+
+float cross_entropy_loss_cuda(const Tensor& y_, const Tensor& y,Tensor& loss)
+{
+    float* d_loss=loss.data();
+    cudaMemset(d_loss,0,sizeof(float));
+
+    int size=y.rows()*y.cols();
+    int threads=BLOCK_SIZE;
+    int blocks=(size+threads-1)/threads;
+    cross_entropy_loss_kernel<<<blocks,threads>>>(y_.data(),y.data(),d_loss,size,y_.rows());
+
+    cudaDeviceSynchronize();
+
+    float h_loss=0.0f;
+    cudaMemcpy(&h_loss,d_loss,sizeof(float),cudaMemcpyDeviceToHost);
+    return h_loss;
 }
