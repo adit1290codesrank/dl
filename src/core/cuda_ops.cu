@@ -309,7 +309,7 @@ __global__ void update_running_stats_kernel(float* r_mean, float* r_var, const f
     }
 }
 
-__global__ void maxpool_forward_kernel(const float* X,const float* Y,int* mask,int batch, int in_h,int in_w,int c,int size,int s,int out_h,int out_w)
+__global__ void maxpool_forward_kernel(const float* X,float* Y,int* mask,int batch, int in_h,int in_w,int c,int size,int s,int out_h,int out_w)
 {
     int index=blockIdx.x*blockDim.x+threadIdx.x;
     if(index<batch*out_h*out_w*c)
@@ -357,13 +357,13 @@ __global__ void maxpool_backward_kernel(const float* dY,float* dX,const int* mas
     }
 }
 
-__global__ void dropout_forward_kernel(const float* X,const float* Y,float *mask,int size,float rate,float scale,unsigned long long seed)
+__global__ void dropout_forward_kernel(const float* X,float* Y,float *mask,int size,float rate,float scale,unsigned long long seed)
 {
     int index=blockIdx.x*blockDim.x+threadIdx.x;
     if(index<size)
     {
         curandStatePhilox4_32_10_t state;
-        curand_init(seed, idx, 0, &state);
+        curand_init(seed,index,0,&state);
 
         float val=curand_uniform(&state);
         if(val<rate)
@@ -374,7 +374,7 @@ __global__ void dropout_forward_kernel(const float* X,const float* Y,float *mask
         else
         {
             mask[index]=scale;
-            Y[index]=X[input]*scale;
+            Y[index]=X[index]*scale;
         }
     }
 }
@@ -382,7 +382,7 @@ __global__ void dropout_forward_kernel(const float* X,const float* Y,float *mask
 __global__ void dropout_backward_kernel(const float* dY,float* dX,const float* mask,int size) 
 {
     int index=blockIdx.x*blockDim.x+threadIdx.x;
-    if(index<size) dX[idx]=dY[idx]*mask[idx];
+    if(index<size) dX[index]=dY[index]*mask[index];
 
 }
 
@@ -391,7 +391,7 @@ void dropout_forward_cuda(const float* X,float* Y,float* mask,int size,float rat
     int threads=BLOCK_SIZE;
     int blocks=(size+threads-1)/threads;
     float scale=1.0f/(1.0f-rate);
-    dropout_forward_kernel<<blocks,threads>>(X,Y,mask,size,rate,scale,seed);
+    dropout_forward_kernel<<<blocks,threads>>>(X,Y,mask,size,rate,scale,seed);
 }
 
 void dropout_backward_cuda(const float* dY,float* dX,const float* mask,int size) 

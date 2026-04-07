@@ -1,5 +1,5 @@
 #pragma once
-#inlcude "layer.h"
+#include "layer.h"
 #include "../core/tensor.h"
 
 class Pooling:public Layer
@@ -22,4 +22,4 @@ class Pooling:public Layer
         Tensor backward(const Tensor& grad,float learning_rate) override;
 
         void set_mode(bool training) override;
-}
+};

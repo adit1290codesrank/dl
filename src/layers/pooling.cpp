@@ -2,8 +2,8 @@
 #include <stdexcept>
 #include <cuda_runtime.h>
 
-void maxpool_forward_cuda(const float* X,float* Y,int* mask, int batch, int in_h, int in_w, int c, int size, int s, int out_h, int out_w);
-void maxpool_backward_cuda(const float* dY,float* dX,const int* mask,int total_dy,int total_dx);
+void maxpool_forward_cuda(const float* X,float* Y,int* index, int batch, int in_h, int in_w, int c, int size, int s, int out_h, int out_w);
+void maxpool_backward_cuda(const float* dY,float* dX,const int* index,int total_dy,int total_dx);
 
 Pooling::Pooling(int size,int s):size(size),s(s),index(nullptr),cached_input_size(0),is_training(true){};
 
@@ -31,35 +31,35 @@ Tensor Pooling::forward(const Tensor& input)
 
     if(this->is_training)
     {
-        if(mask==nullptr||(int)input.total_elements()!=this->cached_input_size)
+        if(index==nullptr||(int)input.total_elements()!=this->cached_input_size)
         {
-            if(mask) cudaFree(mask);
-            cudaMalloc(&mask,n*OH*OW*c*sizeof(int));
+            if(index) cudaFree(index);
+            cudaMalloc(&index,n*OH*OW*c*sizeof(int));
         }
     }
     else
     {
-        if(mask)
+        if(index)
         {
-            cudaFree(mask);
-            mask=nullptr;
+            cudaFree(index);
+            index=nullptr;
         }
     }
 
     this->cached_input_shape=input.shape;
     this->cached_input_size=(int)input.total_elements();
     
-    maxpool_forward_cuda(input.data(),output.data(),mask,n,h,w,c,size,s,OH,OW);
+    maxpool_forward_cuda(input.data(),output.data(),index,n,h,w,c,size,s,OH,OW);
     return output;
 }
 
 Tensor Pooling::backward(const Tensor& dY,float learning_rate)
 {
-    if(!this->is_training||mask==nullptr) return Tensor();
+    if(!this->is_training||index==nullptr) return Tensor();
     Tensor dX(cached_input_shape);
     cudaMemset(dX.data(),0,dX.total_elements()*sizeof(float));
 
-    maxpool_backward_cuda(dY.data(),dX.data(),mask,(int)dY.total_elements(),cached_input_size);
+    maxpool_backward_cuda(dY.data(),dX.data(),index,(int)dY.total_elements(),cached_input_size);
     return dX;
 }
 
