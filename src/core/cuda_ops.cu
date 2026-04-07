@@ -309,6 +309,114 @@ __global__ void update_running_stats_kernel(float* r_mean, float* r_var, const f
     }
 }
 
+__global__ void maxpool_forward_kernel(const float* X,const float* Y,int* mask,int batch, int in_h,int in_w,int c,int size,int s,int out_h,int out_w)
+{
+    int index=blockIdx.x*blockDim.x+threadIdx.x;
+    if(index<batch*out_h*out_w*c)
+    {
+        int col=index%c;
+        int w_out=(index/c)%out_w;
+        int h_out=(index/(c*out_w))%out_h;
+        int b=index/(c*out_w*out_h);
+
+        int h_start=h_out*s;
+        int w_start=w_out*s;    
+        
+        float max_val=-1e38f;
+        int max_idx=-1;
+
+        for(int i=0;i<size;i++)
+        {
+            for(int j=0;j<size;j++)
+            {
+                int cur_h=h_start+i;
+                int cur_w=w_start+j;
+                if(cur_h<in_h && cur_w<in_w)
+                {
+                    int idx=((b*in_h+cur_h)*in_w+cur_w)*c+col;
+                    if(X[idx]>max_val)
+                    {
+                        max_val=X[idx];
+                        max_idx=idx;
+                    }
+                }
+            }
+        }
+        Y[index]=max_val;
+        if(mask!=nullptr) mask[index]=max_idx;
+    }
+}
+
+__global__ void maxpool_backward_kernel(const float* dY,float* dX,const int* mask,int total) 
+{
+    int index=blockIdx.x*blockDim.x+threadIdx.x;
+    if(index<total) 
+    {
+        int target_idx=mask[index];
+        atomicAdd(&dX[target_idx],dY[index]);
+    }
+}
+
+__global__ void dropout_forward_kernel(const float* X,const float* Y,float *mask,int size,float rate,float scale,unsigned long long seed)
+{
+    int index=blockIdx.x*blockDim.x+threadIdx.x;
+    if(index<size)
+    {
+        curandStatePhilox4_32_10_t state;
+        curand_init(seed, idx, 0, &state);
+
+        float val=curand_uniform(&state);
+        if(val<rate)
+        {
+            mask[index]=0.0f;
+            Y[index]=0.0f;
+        }
+        else
+        {
+            mask[index]=scale;
+            Y[index]=X[input]*scale;
+        }
+    }
+}
+
+__global__ void dropout_backward_kernel(const float* dY,float* dX,const float* mask,int size) 
+{
+    int index=blockIdx.x*blockDim.x+threadIdx.x;
+    if(index<size) dX[idx]=dY[idx]*mask[idx];
+
+}
+
+void dropout_forward_cuda(const float* X,float* Y,float* mask,int size,float rate,unsigned long long seed)
+{
+    int threads=BLOCK_SIZE;
+    int blocks=(size+threads-1)/threads;
+    float scale=1.0f/(1.0f-rate);
+    dropout_forward_kernel<<blocks,threads>>(X,Y,mask,size,rate,scale,seed);
+}
+
+void dropout_backward_cuda(const float* dY,float* dX,const float* mask,int size) 
+{
+    int threads=256;
+    int blocks=(size+threads-1)/threads;
+    dropout_backward_kernel<<<blocks,threads>>>(dY,dX,mask,size);
+}
+
+void maxpool_forward_cuda(const float* X,float* Y,int* mask, int batch, int in_h, int in_w, int c, int size, int s, int out_h, int out_w)
+{
+    int total=batch*out_h*out_w*c;
+    int threads=BLOCK_SIZE;
+    int blocks=(total+threads-1)/threads;
+    maxpool_forward_kernel<<<blocks,threads>>>(X,Y,mask,batch,in_h,in_w,c,size,s,out_h,out_w);
+}
+
+void maxpool_backward_cuda(const float* dY,float* dX,const int* mask,int total_dy,int total_dx) 
+{
+    cudaMemset(dX,0,total_dx*sizeof(float));
+    int threads=BLOCK_SIZE;
+    int blocks=(total_dy+threads-1)/threads;
+    maxpool_backward_kernel<<<blocks,threads>>>(dY,dX,mask,total_dy);
+}
+
 void batchnorm_forward_cuda(const Tensor& dY, const Tensor& x_hat, Tensor& d_gamma, Tensor& d_beta) 
 {
     int threads = 256;

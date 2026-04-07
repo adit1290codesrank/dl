@@ -2,7 +2,7 @@
 #include "layer.h"
 #include <fstream>
 
-class BatchNorm1D:public Layer
+class BatchNorm2D:public Layer
 {
     private:
         int features;
@@ -20,7 +20,7 @@ class BatchNorm1D:public Layer
 
         bool is_training;
     public:    
-        BatchNorm1D(int features,float e=1e-5f,float m=0.1f);
+        BatchNorm2D(int features,float e=1e-5f,float m=0.1f);
 
         Tensor forward(const Tensor& input) override;
         Tensor backward(const Tensor& grad,float learning_rate) override;
