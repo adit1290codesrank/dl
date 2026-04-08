@@ -7,7 +7,7 @@ void batchnorm_cuda(const Tensor& x, const Tensor& mean, const Tensor& var, cons
 void update_running_stats_cuda(Tensor& r_mean, Tensor& r_var, const Tensor& b_mean, const Tensor& b_var, float momentum);
 void batchnorm_forward_cuda(const Tensor& dY, const Tensor& x_hat, Tensor& dg, Tensor& db); 
 void batchnorm_backward_cuda(const Tensor& dY, const Tensor& x_hat, const Tensor& var, const Tensor& gamma, const Tensor& dg, const Tensor& db, Tensor& dX, float epsilon);
-void adam_cuda(Tensor& W,const Tensor& grad,Tensor& m,Tensor& v,float lr,int t,int size);
+void adam_cuda(Tensor& W,const Tensor& grad,Tensor& m,Tensor& v,float lr,int t,int size,float lamda=0.001f);
 
 BatchNorm2D::BatchNorm2D(int features,float e,float m):features(features),e(e),m(m),is_training(true)
 {
@@ -70,8 +70,8 @@ Tensor BatchNorm2D::backward(const Tensor& dY_4d,float learning_rate)
     batchnorm_forward_cuda(dY,this->cached_input,dg,db);
     batchnorm_backward_cuda(dY,this->cached_input,this->cached_var,g,dg,db,dX,e);
 
-    adam_cuda(g,dg,mg,vg,learning_rate,t,features);
-    adam_cuda(b,db,mm,vm,learning_rate,t,features);
+    adam_cuda(g,dg,mg,vg,learning_rate,t,features,0.0f);
+    adam_cuda(b,db,mm,vm,learning_rate,t,features,0.0f);
 
     return dX.reshape({B,H,W,C});
 }

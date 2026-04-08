@@ -153,10 +153,14 @@ __global__ void cross_entropy_kernel(const float* y_, const float* y, float* dy,
     }
 }
 
-__global__ void cross_entropy_loss_kernel(const float* y_, const float* y, float* loss, int size, int n)
+__global__ void cross_entropy_loss_kernel(const float* y_, const float* y,float* loss, int size, int n,int k, float epsilon)
 {
-    int index=blockIdx.x*blockDim.x+threadIdx.x;
-    if(index<size) atomicAdd(loss, -y[index]*logf(y_[index]+1e-7f)/(float)n);
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < size)
+    {
+        float target = y[index] * (1.0f - epsilon) + (epsilon / (float)k);
+        atomicAdd(loss, -target * logf(y_[index] + 1e-7f) / (float)n);
+    }
 }
 
 __global__ void add_bias_kernel(float* Y,float* b,int n,int m)
@@ -177,12 +181,11 @@ __global__ void sum_rows_kernel(const float* dY,float* db,int n,int m)
     }
 }
 
-__global__ void adam_kernel(float* w,const float* grad,float* m,float* v,float lr,int t,int size) 
+__global__ void adam_kernel(float* w,const float* grad,float* m,float* v,float lr,int t,int size,float lambda) 
 {
     int idx=blockIdx.x*blockDim.x+threadIdx.x;
     if(idx<size) 
     {
-        float lambda=0.001f;
         float g=grad[idx]+(lambda*w[idx]);
         
         float mt=0.9f*m[idx]+(1.0f-0.9f)*g;
@@ -409,44 +412,44 @@ __global__ void dropout_backward_kernel(const float* dY,float* dX,const float* m
 
 }
 
-__global__ void gap_forward_kernel(const float* input, float* output, int hw, int total_nc) 
+__global__ void gap_forward_kernel(const float* input, float* output,int n, int c, int h, int w)
 {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < total_nc) 
+    int idx = blockIdx.x * blockDim.x + threadIdx.x; 
+    if (idx < n * c)
     {
+        int c_idx = idx % c;
+        int n_idx = idx / c;
         float sum = 0.0f;
-        int offset = idx * hw;
-        for (int i = 0; i < hw; i++) {
-            sum += input[offset + i];
-        }
-        output[idx] = sum / (float)hw;
+        for (int hi = 0; hi < h; hi++)
+            for (int wi = 0; wi < w; wi++)
+                sum += input[((n_idx * h + hi) * w + wi) * c + c_idx]; 
+        output[idx] = sum / (float)(h * w);
     }
 }
 
-__global__ void gap_backward_kernel(const float* grad_output, float* grad_input, int hw, int total_elements) 
+__global__ void gap_backward_kernel(const float* grad_output, float* grad_input,int n, int c, int h, int w)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < total_elements) 
+    if (idx < n * h * w * c)
     {
-        int nc_idx = idx / hw; 
-        grad_input[idx] = grad_output[nc_idx] / (float)hw;
+        int c_idx = idx % c;
+        int n_idx = (idx / c) / (h * w);
+        grad_input[idx] = grad_output[n_idx * c + c_idx] / (float)(h * w);
     }
 }
 
-void gap_forward_cuda(const float* input, float* output, int n, int c, int h, int w) 
+void gap_forward_cuda(const float* input, float* output, int n, int c, int h, int w)
 {
     int total_nc = n * c;
-    int hw = h * w;
     int blocks = (total_nc + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    gap_forward_kernel<<<blocks, BLOCK_SIZE>>>(input, output, hw, total_nc);
+    gap_forward_kernel<<<blocks, BLOCK_SIZE>>>(input, output, n, c, h, w);
 }
 
-void gap_backward_cuda(const float* grad_output, float* grad_input, int n, int c, int h, int w) 
+void gap_backward_cuda(const float* grad_output, float* grad_input, int n, int c, int h, int w)
 {
-    int total_elements = n * c * h * w;
-    int hw = h * w;
-    int blocks = (total_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    gap_backward_kernel<<<blocks, BLOCK_SIZE>>>(grad_output, grad_input, hw, total_elements);
+    int total = n * h * w * c;
+    int blocks = (total + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    gap_backward_kernel<<<blocks, BLOCK_SIZE>>>(grad_output, grad_input, n, c, h, w);
 }
 
 void dropout_forward_cuda(const float* X,float* Y,float* mask,int size,float rate,unsigned long long seed)
@@ -549,11 +552,11 @@ void leaky_relu_backward_cuda(const Tensor& dY,const Tensor& cached_X,Tensor& dX
     leaky_relu_backward_kernel<<<blocks,threads>>>(dY.data(),cached_X.data(),dX.data(),alpha,size);
 }
 
-void adam_cuda(Tensor& W,const Tensor& grad,Tensor& m,Tensor& v,float lr,int t,int size)
+void adam_cuda(Tensor& W,const Tensor& grad,Tensor& m,Tensor& v,float lr,int t,int size,float lamda=0.001f)
 {
     int threads=BLOCK_SIZE;
     int blocks=(size+threads-1)/threads;
-    adam_kernel<<<blocks,threads>>>(W.data(),grad.data(),m.data(),v.data(),lr,t,size);
+    adam_kernel<<<blocks,threads>>>(W.data(),grad.data(),m.data(),v.data(),lr,t,size,lamda);
 }
 
 void sum_rows_cuda(const Tensor& dY, Tensor& db)
@@ -626,19 +629,21 @@ float mse_loss_cuda(const Tensor& y_,const Tensor& y,Tensor& loss)
     return h_loss;
 }
 
-float cross_entropy_loss_cuda(const Tensor& y_, const Tensor& y,Tensor& loss)
+float cross_entropy_loss_cuda(const Tensor& y_, const Tensor& y, Tensor& loss)
 {
-    float* d_loss=loss.data();
-    cudaMemset(d_loss,0,sizeof(float));
+    float* d_loss = loss.data();
+    cudaMemset(d_loss, 0, sizeof(float));
 
-    int size=y.rows()*y.cols();
-    int threads=BLOCK_SIZE;
-    int blocks=(size+threads-1)/threads;
-    cross_entropy_loss_kernel<<<blocks,threads>>>(y_.data(),y.data(),d_loss,size,y_.rows());
+    int size = y.rows() * y.cols();
+    int k    = y.cols();
+    float epsilon = 0.1f;
+
+    int blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    cross_entropy_loss_kernel<<<blocks, BLOCK_SIZE>>>(y_.data(), y.data(), d_loss, size, y_.rows(), k, epsilon);
 
     cudaDeviceSynchronize();
 
-    float h_loss=0.0f;
-    cudaMemcpy(&h_loss,d_loss,sizeof(float),cudaMemcpyDeviceToHost);
+    float h_loss = 0.0f;
+    cudaMemcpy(&h_loss, d_loss, sizeof(float), cudaMemcpyDeviceToHost);
     return h_loss;
 }

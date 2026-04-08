@@ -3,7 +3,7 @@
 #include <fstream>
 #include <random>
 
-void adam_cuda(Tensor& W,const Tensor& grad,Tensor& m,Tensor& v,float lr,int t,int size);
+void adam_cuda(Tensor& W,const Tensor& grad,Tensor& m,Tensor& v,float lr,int t,int size,float lamda=0.001f);
 void sum_rows_cuda(const Tensor& dY, Tensor& db);
 void add_bias_cuda(Tensor& Y, const Tensor& b);
 Tensor matrix_multiply(const Tensor& A,bool transA,const Tensor& B,bool transB);
@@ -55,8 +55,8 @@ Tensor Conv2D::backward(const Tensor& dY_4d,float learning_rate)
     Tensor dX=matrix_multiply(dY,false,this->w,true);
     dX=dX.col2im(this->cached_input.shape,this->f,this->f,this->s,this->p);
 
-    adam_cuda(this->w,dW,this->mw,this->vw,learning_rate,this->t,this->d1*this->f*this->f*this->d2);
-    adam_cuda(this->b,db,this->mb,this->vb,learning_rate,this->t,this->d2);
+    adam_cuda(this->w,dW,this->mw,this->vw,learning_rate,this->t,this->d1*this->f*this->f*this->d2,0.001f);
+    adam_cuda(this->b,db,this->mb,this->vb,learning_rate,this->t,this->d2,0.0f);
     return dX;
 }
 

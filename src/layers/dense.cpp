@@ -2,7 +2,7 @@
 #include <fstream>
 #include <cmath>
 
-void adam_cuda(Tensor& W,const Tensor& grad,Tensor& m,Tensor& v,float lr,int t,int size);
+void adam_cuda(Tensor& W,const Tensor& grad,Tensor& m,Tensor& v,float lr,int t,int size,float lamda=0.001f);
 void sum_rows_cuda(const Tensor& dY, Tensor& db);
 void add_bias_cuda(Tensor& Y, const Tensor& b);
 Tensor matrix_multiply(const Tensor& A,bool transA,const Tensor& B,bool transB);
@@ -43,8 +43,8 @@ Tensor Dense::backward(const Tensor& dY,float learning_rate)
     Tensor db=Tensor::zeros(1,this->output_size);
     sum_rows_cuda(dY,db);
 
-    adam_cuda(this->w,dW,this->mw,this->vw,learning_rate,this->t,this->output_size*this->input_size);
-    adam_cuda(this->b,db,this->mb,this->vb,learning_rate,this->t,this->output_size);
+    adam_cuda(this->w,dW,this->mw,this->vw,learning_rate,this->t,this->output_size*this->input_size,0.001f);
+    adam_cuda(this->b,db,this->mb,this->vb,learning_rate,this->t,this->output_size,0.0f);
 
     return dX;
 }
