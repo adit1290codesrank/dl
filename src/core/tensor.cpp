@@ -4,6 +4,7 @@
 #include <stdexcept>
 
 Tensor matrix_multiply(const Tensor& A,bool transA,const Tensor& B,bool transB);
+Tensor matrix_add(const Tensor& A,const Tensor& B);
 void im2col_cuda(const Tensor& im,int k_h,int k_w,int s,int p,int h_out,int w_out,Tensor& m);
 void col2im_cuda(const Tensor& m,int k_h,int k_w,int s,int p,int h_out,int w_out,Tensor& im);
 
@@ -79,6 +80,11 @@ Tensor Tensor::slice(int start_row,int num_rows) const
 Tensor Tensor::operator*(const Tensor& other) const
 {
     return matrix_multiply(*this,false,other,false);
+}
+
+Tensor Tensor::operator+(const Tensor& other) const
+{
+    return matrix_add(*this,other);
 }
 
 size_t Tensor::total_elements() const

@@ -35,6 +35,7 @@ class Tensor
         std::vector<float> download() const;
         static Tensor zeros(int r,int c);
         Tensor operator*(const Tensor& other) const;
+        Tensor operator+(const Tensor& other) const;
         Tensor slice(int start_row,int num_rows) const;
         Tensor clone() const;
         size_t total_elements() const;

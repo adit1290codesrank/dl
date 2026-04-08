@@ -5,6 +5,7 @@
 #include "../../include/core/network.h"
 #include "../../include/core/loss.h"
 #include <algorithm>
+#include <cmath>
 
 void Network::fit(const std::vector<float>& X,const std::vector<float>& Y,int n,int size,int classes,int epochs,int printing_interval,float learning_rate,int batch_size,LossType loss_type)
 {
@@ -19,10 +20,13 @@ void Network::fit(const std::vector<float>& X,const std::vector<float>& Y,int n,
     Tensor grad=Tensor::zeros(batch_size, classes);
     Tensor loss_=Tensor::zeros(1,1);
 
+    float max_lr=learning_rate,min_lr=0.00001f;
+
     for(int e=1;e<=epochs;e++)
     {
         std::shuffle(indices.begin(),indices.end(),g);
         float loss=0.0f;
+        float current_lr=min_lr+0.5f*(max_lr-min_lr)*(1.0f+cosf((float)(e-1)/(float)epochs*M_PI));
 
         for(int b=0;b<num_batches;b++)
         {
@@ -45,7 +49,7 @@ void Network::fit(const std::vector<float>& X,const std::vector<float>& Y,int n,
             else if(loss_type==LossType::MSE) Loss::compute_gradient(output,d_Y,grad,LossType::MSE);
             else throw std::invalid_argument("Unsupported loss type");
 
-            this->backward(grad,learning_rate);
+            this->backward(grad,current_lr);
             if(loss_type==LossType::CROSS_ENTROPY) loss+=Loss::compute_loss(output,d_Y,loss_,LossType::CROSS_ENTROPY);
             else if(loss_type==LossType::MSE) loss+=Loss::compute_loss(output,d_Y,loss_,LossType::MSE);
         }

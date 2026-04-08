@@ -35,6 +35,24 @@ Tensor matrix_multiply(const Tensor& A,bool transA,const Tensor& B,bool transB)
     return C;
 }
 
+Tensor matrix_add(const Tensor& A,const Tensor& B)
+{
+    if(A.shape != B.shape) throw std::invalid_argument("Tensor shapes must match for matrix addition");
+
+    Tensor C(A.shape);
+    cublasHandle_t handle=CudaContext::get_instance().get_cublas_handle();
+
+    float alpha=1.0f;
+    float beta=1.0f;
+
+    int total=1;
+    for(auto dim:A.shape) total*=dim;
+    cublasStatus_t status=cublasSgeam(handle,CUBLAS_OP_N,CUBLAS_OP_N,total,1,&alpha,A.data(),total,&beta,B.data(),total,C.data(),total);
+
+    if(status!=CUBLAS_STATUS_SUCCESS) throw std::runtime_error("cuBLAS SGEAM failed!");
+    return C;
+}
+
 /*
 Image2Col and Col2Image kernels
 im2col converts 3D image to 2D matrix, where each column is flattened kernel of image. col2im does reverse. These are used to avoid 3 nested loops in forward and backward pass.
@@ -160,7 +178,8 @@ __global__ void adam_kernel(float* w,const float* grad,float* m,float* v,float l
     int idx=blockIdx.x*blockDim.x+threadIdx.x;
     if(idx<size) 
     {
-        float g=grad[idx];
+        float lambda=0.0001f;
+        float g=grad[idx]+(lambda*w[idx]);
         
         float mt=0.9f*m[idx]+(1.0f-0.9f)*g;
         float vt=0.999f*v[idx]+(1.0f-0.999f)*g*g;
@@ -384,6 +403,46 @@ __global__ void dropout_backward_kernel(const float* dY,float* dX,const float* m
     int index=blockIdx.x*blockDim.x+threadIdx.x;
     if(index<size) dX[index]=dY[index]*mask[index];
 
+}
+
+__global__ void gap_forward_kernel(const float* input, float* output, int hw, int total_nc) 
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < total_nc) 
+    {
+        float sum = 0.0f;
+        int offset = idx * hw;
+        for (int i = 0; i < hw; i++) {
+            sum += input[offset + i];
+        }
+        output[idx] = sum / (float)hw;
+    }
+}
+
+__global__ void gap_backward_kernel(const float* grad_output, float* grad_input, int hw, int total_elements) 
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < total_elements) 
+    {
+        int nc_idx = idx / hw; 
+        grad_input[idx] = grad_output[nc_idx] / (float)hw;
+    }
+}
+
+void gap_forward_cuda(const float* input, float* output, int n, int c, int h, int w) 
+{
+    int total_nc = n * c;
+    int hw = h * w;
+    int blocks = (total_nc + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    gap_forward_kernel<<<blocks, BLOCK_SIZE>>>(input, output, hw, total_nc);
+}
+
+void gap_backward_cuda(const float* grad_output, float* grad_input, int n, int c, int h, int w) 
+{
+    int total_elements = n * c * h * w;
+    int hw = h * w;
+    int blocks = (total_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    gap_backward_kernel<<<blocks, BLOCK_SIZE>>>(grad_output, grad_input, hw, total_elements);
 }
 
 void dropout_forward_cuda(const float* X,float* Y,float* mask,int size,float rate,unsigned long long seed)
