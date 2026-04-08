@@ -143,10 +143,14 @@ Cross Entropy Kernel.
 Error=-1/N*sum(y_*log(y))
 dError/dy=-1/N*(y_/y)
 */
-__global__ void cross_entropy_kernel(const float* y_, const float* y, float* dy,int size,int n)
+__global__ void cross_entropy_kernel(const float* y_, const float* y, float* dy,int size,int n,int k,float epsilon)
 {
     int index=blockIdx.x*blockDim.x+threadIdx.x;
-    if(index<size) dy[index]=(y_[index]-y[index])/(float)n;
+    if(index<size)
+    {
+        float target=y[index]*(1.0f-epsilon)+(epsilon/(float)k);
+        dy[index]=(y_[index]-target)/(float)n;
+    }
 }
 
 __global__ void cross_entropy_loss_kernel(const float* y_, const float* y, float* loss, int size, int n)
@@ -178,7 +182,7 @@ __global__ void adam_kernel(float* w,const float* grad,float* m,float* v,float l
     int idx=blockIdx.x*blockDim.x+threadIdx.x;
     if(idx<size) 
     {
-        float lambda=0.0001f;
+        float lambda=0.001f;
         float g=grad[idx]+(lambda*w[idx]);
         
         float mt=0.9f*m[idx]+(1.0f-0.9f)*g;
@@ -596,10 +600,13 @@ void mse_cuda(const Tensor& y_,const Tensor& y,Tensor& dy)
 
 void cross_entropy_cuda(const Tensor& y_, const Tensor& y, Tensor& dy)
 {
-    int size=y.rows()*y.cols();
+    int n=y.rows();
+    int k=y.cols();
+    int size=n*k;
+    float epsilon=0.1f;
     int threads=BLOCK_SIZE;
     int blocks=(size+threads-1)/threads;
-    cross_entropy_kernel<<<blocks,threads>>>(y_.data(),y.data(),dy.data(),size,y_.rows());
+    cross_entropy_kernel<<<blocks,threads>>>(y_.data(),y.data(),dy.data(),size,n,k,epsilon);
 }
 
 float mse_loss_cuda(const Tensor& y_,const Tensor& y,Tensor& loss)
