@@ -438,6 +438,82 @@ __global__ void gap_backward_kernel(const float* grad_output, float* grad_input,
     }
 }
 
+__global__ void gen_aug_params_kernel(int* tops, int* lefts, int* flips,int N, int pad, unsigned long long seed)
+{
+    int n = blockIdx.x * blockDim.x + threadIdx.x;
+    if (n >= N) return;
+
+    curandStatePhilox4_32_10_t state;
+    curand_init(seed, n, 0, &state);
+
+    int range = 2 * pad + 1;
+    tops[n]  = min((int)(curand_uniform(&state) * range), 2 * pad);
+    lefts[n] = min((int)(curand_uniform(&state) * range), 2 * pad);
+    flips[n] = curand_uniform(&state) < 0.5f ? 1 : 0;
+}
+
+__global__ void apply_aug_kernel(const float* input, float* output,const int* tops, const int* lefts, const int* flips,int N, int H, int W, int C, int pad)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= N * H * W * C) return;
+
+    int c =  idx % C;
+    int w = (idx / C) % W;
+    int h = (idx / (C * W)) % H;
+    int n =  idx / (C * W * H);
+
+    int src_h = h + tops[n] - pad;
+    int src_w = (flips[n] ? (W - 1 - w) : w) + lefts[n] - pad;
+
+    output[idx] = (src_h >= 0 && src_h < H && src_w >= 0 && src_w < W)? input[((n * H + src_h) * W + src_w) * C + c]: 0.0f;
+}
+
+__global__ void aug_backward_kernel(const float* dout, float* din,const int* tops, const int* lefts, const int* flips,int N, int H, int W, int C, int pad)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= N * H * W * C) return;
+
+    int c =  idx % C;
+    int w = (idx / C) % W;
+    int h = (idx / (C * W)) % H;
+    int n =  idx / (C * W * H);
+
+    int src_h = h + tops[n] - pad;
+    int src_w = (flips[n] ? (W - 1 - w) : w) + lefts[n] - pad;
+
+    if (src_h >= 0 && src_h < H && src_w >= 0 && src_w < W)atomicAdd(&din[((n * H + src_h) * W + src_w) * C + c], dout[idx]);
+}
+
+void augment_forward_cuda(const Tensor& input, Tensor& output,int* d_tops, int* d_lefts, int* d_flips,int pad, unsigned long long seed)
+{
+    int N = input.shape[0];
+    int H = input.shape[1];
+    int W = input.shape[2];
+    int C = input.shape[3];
+
+    int pblocks = (N + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    gen_aug_params_kernel<<<pblocks, BLOCK_SIZE>>>(d_tops, d_lefts, d_flips, N, pad, seed);
+
+    int total = N * H * W * C;
+    int ablocks = (total + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    apply_aug_kernel<<<ablocks, BLOCK_SIZE>>>(
+        input.data(), output.data(), d_tops, d_lefts, d_flips, N, H, W, C, pad);
+}
+
+void augment_backward_cuda(const Tensor& dout, Tensor& din,const int* d_tops, const int* d_lefts, const int* d_flips,int pad)
+{
+    int N = dout.shape[0];
+    int H = dout.shape[1];
+    int W = dout.shape[2];
+    int C = dout.shape[3];
+
+    cudaMemset(din.data(), 0, din.total_elements() * sizeof(float));
+
+    int total = N * H * W * C;
+    int blocks = (total + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    aug_backward_kernel<<<blocks, BLOCK_SIZE>>>(dout.data(), din.data(), d_tops, d_lefts, d_flips, N, H, W, C, pad);
+}
+
 void gap_forward_cuda(const float* input, float* output, int n, int c, int h, int w)
 {
     int total_nc = n * c;
