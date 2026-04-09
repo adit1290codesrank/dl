@@ -22,6 +22,14 @@ void Network::fit(const std::vector<float>& X,const std::vector<float>& Y,int n,
 
     float max_lr=learning_rate,min_lr=0.00001f;
 
+    // --- NEW: Open a log file to track loss ---
+    std::ofstream log_file("training_loss.csv");
+    if (log_file.is_open()) {
+        log_file << "Epoch,Loss\n"; // CSV Header
+    } else {
+        std::cerr << "Warning: Could not open training_loss.csv for writing." << std::endl;
+    }
+
     for(int e=1;e<=epochs;e++)
     {
         std::shuffle(indices.begin(),indices.end(),g);
@@ -53,7 +61,22 @@ void Network::fit(const std::vector<float>& X,const std::vector<float>& Y,int n,
             if(loss_type==LossType::CROSS_ENTROPY) loss+=Loss::compute_loss(output,d_Y,loss_,LossType::CROSS_ENTROPY);
             else if(loss_type==LossType::MSE) loss+=Loss::compute_loss(output,d_Y,loss_,LossType::MSE);
         }
-        if(e%printing_interval==0) std::cout<<"Epoch: "<<e<<", Loss: "<<loss/num_batches<<std::endl;
+        
+        float epoch_loss = loss / num_batches;
+        
+        if(e%printing_interval==0) {
+            std::cout<<"Epoch: "<<e<<", Loss: "<<epoch_loss<<std::endl;
+        }
+
+        // --- NEW: Write the current epoch and loss to the file ---
+        if (log_file.is_open()) {
+            log_file << e << "," << epoch_loss << "\n";
+            log_file.flush(); // Crucial: forces write to disk immediately so you don't lose data if it crashes while you sleep
+        }
+    }
+    
+    if (log_file.is_open()) {
+        log_file.close();
     }
 }
 
@@ -91,4 +114,3 @@ void Network::load(const std::string& filename)
     is.close();
     std::cout<<"Model loaded from "<<filename<<std::endl;   
 }
-
