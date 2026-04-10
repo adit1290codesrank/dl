@@ -34,7 +34,7 @@ void Network::fit(const std::vector<float>& X,const std::vector<float>& Y,int n,
     {
         std::shuffle(indices.begin(),indices.end(),g);
         float loss=0.0f;
-        float current_lr=min_lr+0.5f*(max_lr-min_lr)*(1.0f+cosf((float)(e-1)/(float)epochs*M_PI));
+        float current_lr=min_lr+0.5f*(max_lr-min_lr)*(1.0f+cosf((float)(e-1)/(float)(epochs-1)*M_PI));
 
         for(int b=0;b<num_batches;b++)
         {

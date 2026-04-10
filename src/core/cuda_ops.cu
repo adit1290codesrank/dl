@@ -484,6 +484,49 @@ __global__ void aug_backward_kernel(const float* dout, float* din,const int* top
     if (src_h >= 0 && src_h < H && src_w >= 0 && src_w < W)atomicAdd(&din[((n * H + src_h) * W + src_w) * C + c], dout[idx]);
 }
 
+__global__ void cutout_kernel(float* X, const int* cx, const int* cy,int N, int H, int W, int C, int cut_size)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= N * H * W * C) return;
+
+    int w = (idx / C) % W;
+    int h = (idx / (C * W)) % H;
+    int n =  idx / (C * W * H);
+
+    int half = cut_size / 2;
+    int x0 = cx[n] - half, x1 = cx[n] + half;
+    int y0 = cy[n] - half, y1 = cy[n] + half;
+
+    if (h >= y0 && h < y1 && w >= x0 && w < x1) X[idx] = 0.0f;
+}
+
+__global__ void gen_cutout_params_kernel(int* cx, int* cy,int N, int H, int W,unsigned long long seed)
+{
+    int n = blockIdx.x * blockDim.x + threadIdx.x;
+    if (n >= N) return;
+
+    curandStatePhilox4_32_10_t state;
+    curand_init(seed, n, 0, &state);
+
+    cx[n] = (int)(curand_uniform(&state) * W);
+    cy[n] = (int)(curand_uniform(&state) * H);
+}
+
+void cutout_cuda(Tensor& X, int* d_cx, int* d_cy,int cut_size, unsigned long long seed)
+{
+    int N = X.shape[0];
+    int H = X.shape[1];
+    int W = X.shape[2];
+    int C = X.shape[3];
+
+    int pblocks = (N + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    gen_cutout_params_kernel<<<pblocks, BLOCK_SIZE>>>(d_cx, d_cy, N, H, W, seed);
+
+    int total = N * H * W * C;
+    int ablocks = (total + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    cutout_kernel<<<ablocks, BLOCK_SIZE>>>(X.data(), d_cx, d_cy, N, H, W, C, cut_size);
+}
+
 void augment_forward_cuda(const Tensor& input, Tensor& output,int* d_tops, int* d_lefts, int* d_flips,int pad, unsigned long long seed)
 {
     int N = input.shape[0];
