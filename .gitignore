@@ -17,4 +17,4 @@ data/
 *.bin
 *.gz
 
-.bat
+*.bat
