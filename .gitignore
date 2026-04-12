@@ -16,3 +16,5 @@ data/
 data/
 *.bin
 *.gz
+
+.bat
