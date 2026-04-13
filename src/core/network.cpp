@@ -6,6 +6,9 @@
 #include "../../include/core/loss.h"
 #include <algorithm>
 #include <cmath>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 void Network::fit(const std::vector<float>& X,const std::vector<float>& Y,int n,int size,int classes,int epochs,int printing_interval,float learning_rate,int batch_size,LossType loss_type)
 {
