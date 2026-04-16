@@ -19,7 +19,7 @@ Tensor matrix_multiply(const Tensor& A,bool transA,const Tensor& B,bool transB)
     int k1=transA?A.rows():A.cols();
     int k2=transB?B.cols():B.rows();
     int n=transB?B.rows():B.cols();
-    if(k1!=k2) throw std::invalid_argument("Inner dimensions must match for matrix multiplication");
+    if(k1!=k2) throw std::invalid_argument("Inner dimension must match for matrix multiplication");
 
     Tensor C(m,n);
     cublasHandle_t handle=CudaContext::get_instance().get_cublas_handle();
@@ -211,6 +211,21 @@ __global__ void leaky_relu_backward_kernel(const float* dY,const float* cached_X
 {
     int index=blockIdx.x*blockDim.x+threadIdx.x;
     if(index<size) dX[index]=cached_X[index]>0.0f?dY[index]:alpha*dY[index];
+}
+
+__global__ void sigmoid_forward_kernel(float* Y, int size)
+{
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < size) Y[index] = 1.0f / (1.0f + expf(-Y[index]));
+}
+
+__global__ void sigmoid_backward_kernel(const float* dY, const float* cached_X, float* dX, int size)
+{
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < size) {
+        float s = 1.0f / (1.0f + expf(-cached_X[index]));
+        dX[index] = dY[index] * s * (1.0f - s);
+    }
 }
 
 __global__ void softmax_kernel(const float* X,float* Y,int n,int m)
@@ -512,6 +527,256 @@ __global__ void gen_cutout_params_kernel(int* cx, int* cy,int N, int H, int W,un
     cy[n] = (int)(curand_uniform(&state) * H);
 }
 
+__global__ void embedding_forward_kernel(const float* input,const float* w,float* output,int tokens,int dimension,int size)
+{
+    int index=blockDim.x*blockIdx.x+threadIdx.x;
+    if(index<tokens*dimension)
+    {
+        int token_index=index/dimension;
+        int dim_index=index%dimension;
+
+        int id=(int)input[token_index];
+        if(id>=0 && id<size)output[index]=w[id*dimension+dim_index];
+        else output[index]=0.0f;
+    }
+}
+
+__global__ void embedding_backward_kernel(const float* input,const float* dY,float *dW,int tokens,int dimension,int size)
+{
+    int index=blockDim.x*blockIdx.x+threadIdx.x;
+    if(index<tokens*dimension)
+    {
+        int token_index=index/dimension;
+        int dim_index=index%dimension;
+
+        int id=(int)input[token_index];
+        if(id>=0 && id<size) atomicAdd(&dW[id*dimension+dim_index],dY[index]);
+    }
+}
+
+__global__ void attention_scale_kernel(float* data,float scale,int size)
+{
+    int idx=blockIdx.x*blockDim.x+threadIdx.x;
+    if(idx<size) data[idx]*=scale;
+}
+
+__global__ void attention_softmax_kernel(float* data,int rows,int cols)
+{
+    int row=blockIdx.x*blockDim.x+threadIdx.x;
+    if(row<rows)
+    {
+        float* row_ptr=data+row*cols;
+        int token_pos=row%cols;
+
+        // Causal mask: set future positions to -inf
+        for(int i=token_pos+1;i<cols;i++) row_ptr[i]=-INFINITY;
+
+        float max_val=row_ptr[0];
+        for(int i=1;i<=token_pos;i++) if(row_ptr[i]>max_val) max_val=row_ptr[i];
+
+        float sum=0.0f;
+        for(int i=0;i<=token_pos;i++)
+        {
+            row_ptr[i]=expf(row_ptr[i]-max_val);
+            sum+=row_ptr[i];
+        }
+
+        float inv_sum=1.0f/sum;
+        for(int i=0;i<=token_pos;i++) row_ptr[i]*=inv_sum;
+        for(int i=token_pos+1;i<cols;i++) row_ptr[i]=0.0f;
+    }
+}
+
+__global__ void attention_softmax_backward_kernel(const float* dY,const float* Y,float* dX,int rows,int cols)
+{
+    int row=blockIdx.x*blockDim.x+threadIdx.x;
+    if(row<rows)
+    {
+        int offset=row*cols;
+        int token_pos=row%cols;
+
+        float dot=0.0f;
+        for(int i=0;i<=token_pos;i++) dot+=dY[offset+i]*Y[offset+i];
+
+        for(int i=0;i<=token_pos;i++) dX[offset+i]=Y[offset+i]*(dY[offset+i]-dot);
+        for(int i=token_pos+1;i<cols;i++) dX[offset+i]=0.0f;
+    }
+}
+
+__global__ void split_heads_kernel(const float* input,float* output,int N,int T,int H,int dk)
+{
+    int idx=blockIdx.x*blockDim.x+threadIdx.x;
+    int total=N*H*T*dk;
+    if(idx<total)
+    {
+        int d=idx%dk;
+        int t=(idx/dk)%T;
+        int h=(idx/(dk*T))%H;
+        int n=idx/(dk*T*H);
+
+        int in_idx=(n*T+t)*(H*dk)+h*dk+d;
+        output[idx]=input[in_idx];
+    }
+}
+
+__global__ void merge_heads_kernel(const float* input,float* output,int N,int T,int H,int dk)
+{
+    int idx=blockIdx.x*blockDim.x+threadIdx.x;
+    int total=N*T*H*dk;
+    if(idx<total)
+    {
+        int D=H*dk;
+        int d=idx%D;
+        int nt=idx/D;
+
+        int h=d/dk;
+        int di=d%dk;
+        int n=nt/T;
+        int t=nt%T;
+
+        int in_idx=(n*H+h)*T*dk+t*dk+di;
+        output[idx]=input[in_idx];
+    }
+}
+
+__global__ void layernorm_forward_kernel(const float* X,const float* g,const float* b,float* Y,float* mean,float* var,float* x_hat,int rows,int cols,float eps)
+{
+    int row=blockIdx.x*blockDim.x+threadIdx.x;
+    if(row<rows)
+    {
+        int offset=row*cols;
+
+        float sum=0.0f;
+        for(int i=0;i<cols;i++) sum+=X[offset+i];
+        float m=sum/(float)cols;
+        mean[row]=m;
+
+        float sq_sum=0.0f;
+        for(int i=0;i<cols;i++) sq_sum+=(X[offset+i]-m)*(X[offset+i]-m);
+        float v=sq_sum/(float)cols;
+        var[row]=v;
+
+        float inv_std=rsqrtf(v+eps);
+        for(int i=0;i<cols;i++)
+        {
+            float xh=(X[offset+i]-m)*inv_std;
+            x_hat[offset+i]=xh;
+            Y[offset+i]=g[i]*xh+b[i];
+        }
+    }
+}
+
+__global__ void layernorm_backward_kernel(const float* dY,const float* x_hat,const float* g,const float* var,float* dX,float* dg,float* db,int rows,int cols,float eps)
+{
+    int row=blockIdx.x*blockDim.x+threadIdx.x;
+    if(row<rows)
+    {
+        int offset=row*cols;
+        float inv_std=rsqrtf(var[row]+eps);
+
+        float dot_dy_xhat=0.0f;
+        float dot_dy=0.0f;
+        for(int i=0;i<cols;i++)
+        {
+            float dy_scaled=dY[offset+i]*g[i];
+            dot_dy_xhat+=dy_scaled*x_hat[offset+i];
+            dot_dy+=dy_scaled;
+        }
+
+        float inv_cols=1.0f/(float)cols;
+        for(int i=0;i<cols;i++)
+        {
+            float dy_scaled=dY[offset+i]*g[i];
+            dX[offset+i]=inv_std*(dy_scaled-inv_cols*(dot_dy+x_hat[offset+i]*dot_dy_xhat));
+
+            atomicAdd(&dg[i],dY[offset+i]*x_hat[offset+i]);
+            atomicAdd(&db[i],dY[offset+i]);
+        }
+    }
+}
+
+void attention_scale_cuda(float* data,float scale,int size)
+{
+    int blocks=(size+BLOCK_SIZE-1)/BLOCK_SIZE;
+    attention_scale_kernel<<<blocks,BLOCK_SIZE>>>(data,scale,size);
+}
+
+void attention_softmax_cuda(float* data,int rows,int cols)
+{
+    int blocks=(rows+BLOCK_SIZE-1)/BLOCK_SIZE;
+    attention_softmax_kernel<<<blocks,BLOCK_SIZE>>>(data,rows,cols);
+}
+
+void attention_softmax_backward_cuda(const float* dY,const float* Y,float* dX,int rows,int cols)
+{
+    int blocks=(rows+BLOCK_SIZE-1)/BLOCK_SIZE;
+    attention_softmax_backward_kernel<<<blocks,BLOCK_SIZE>>>(dY,Y,dX,rows,cols);
+}
+
+void split_heads_cuda(const float* input,float* output,int N,int T,int H,int dk)
+{
+    int total=N*H*T*dk;
+    int blocks=(total+BLOCK_SIZE-1)/BLOCK_SIZE;
+    split_heads_kernel<<<blocks,BLOCK_SIZE>>>(input,output,N,T,H,dk);
+}
+
+void merge_heads_cuda(const float* input,float* output,int N,int T,int H,int dk)
+{
+    int total=N*T*H*dk;
+    int blocks=(total+BLOCK_SIZE-1)/BLOCK_SIZE;
+    merge_heads_kernel<<<blocks,BLOCK_SIZE>>>(input,output,N,T,H,dk);
+}
+
+void batched_matmul_cuda(const float* A,bool transA,const float* B,bool transB,float* C,int batch,int M,int K,int N)
+{
+    cublasHandle_t handle=CudaContext::get_instance().get_cublas_handle();
+
+    cublasOperation_t opA_cublas=transA?CUBLAS_OP_N:CUBLAS_OP_T;
+    cublasOperation_t opB_cublas=transB?CUBLAS_OP_N:CUBLAS_OP_T;
+
+    int lda_cublas=transA?M:K;    
+    int ldb_cublas=transB?K:N;   
+    int ldc_cublas=N;             
+
+    int strideA_rows=transA?K:M;
+    int strideA_cols=transA?M:K;
+    long long strideA=(long long)strideA_rows*strideA_cols;
+    int strideB_rows=transB?N:K;
+    int strideB_cols=transB?K:N;
+    long long strideB=(long long)strideB_rows*strideB_cols;
+    long long strideC=(long long)M*N;
+
+    float alpha=1.0f;
+    float beta=0.0f;
+
+    cublasSgemmStridedBatched(
+        handle,
+        opB_cublas,     
+        opA_cublas,     
+        N,M,K,          
+        &alpha,
+        B,ldb_cublas,strideB,
+        A,lda_cublas,strideA,
+        &beta,
+        C,ldc_cublas,strideC,
+        batch
+    );
+}
+
+void embedding_forward_cuda(const float* X,const float* dW,float* Y,int tokens,int dimension,int size)
+{
+    int threads=BLOCK_SIZE;
+    int blocks=(tokens*dimension+threads-1)/threads;
+    embedding_forward_kernel<<<blocks,threads>>>(X,dW,Y,tokens,dimension,size);   
+}
+
+void embedding_backward_cuda(const float* X,const float* dY,float* dW,int tokens,int dimension,int size)
+{
+    int threads=BLOCK_SIZE;
+    int blocks=(tokens*dimension+threads-1)/threads;
+    embedding_backward_kernel<<<blocks,threads>>>(X,dY,dW,tokens,dimension,size);
+}
+
 void cutout_cuda(Tensor& X, int* d_cx, int* d_cy,int cut_size, unsigned long long seed)
 {
     int N = X.shape[0];
@@ -671,6 +936,22 @@ void leaky_relu_backward_cuda(const Tensor& dY,const Tensor& cached_X,Tensor& dX
     leaky_relu_backward_kernel<<<blocks,threads>>>(dY.data(),cached_X.data(),dX.data(),alpha,size);
 }
 
+void sigmoid_forward_cuda(Tensor& Y)
+{
+    int size = Y.rows() * Y.cols();
+    int threads = BLOCK_SIZE;
+    int blocks = (size + threads - 1) / threads;
+    sigmoid_forward_kernel<<<blocks, threads>>>(Y.data(), size);
+}
+
+void sigmoid_backward_cuda(const Tensor& dY, const Tensor& cached_X, Tensor& dX)
+{
+    int size = dY.rows() * dY.cols();
+    int threads = BLOCK_SIZE;
+    int blocks = (size + threads - 1) / threads;
+    sigmoid_backward_kernel<<<blocks, threads>>>(dY.data(), cached_X.data(), dX.data(), size);
+}
+
 void adam_cuda(Tensor& W,const Tensor& grad,Tensor& m,Tensor& v,float lr,int t,int size,float lamda=0.001f)
 {
     int threads=BLOCK_SIZE;
@@ -765,4 +1046,16 @@ float cross_entropy_loss_cuda(const Tensor& y_, const Tensor& y, Tensor& loss)
     float h_loss = 0.0f;
     cudaMemcpy(&h_loss, d_loss, sizeof(float), cudaMemcpyDeviceToHost);
     return h_loss;
+}
+
+void layernorm_forward_cuda(const float* X,const float* g,const float* b,float* Y,float* mean,float* var,float* x_hat,int rows,int cols,float eps)
+{
+    int blocks=(rows+BLOCK_SIZE-1)/BLOCK_SIZE;
+    layernorm_forward_kernel<<<blocks,BLOCK_SIZE>>>(X,g,b,Y,mean,var,x_hat,rows,cols,eps);
+}
+
+void layernorm_backward_cuda(const float* dY,const float* x_hat,const float* g,const float* var,float* dX,float* dg,float* db,int rows,int cols,float eps)
+{
+    int blocks=(rows+BLOCK_SIZE-1)/BLOCK_SIZE;
+    layernorm_backward_kernel<<<blocks,BLOCK_SIZE>>>(dY,x_hat,g,var,dX,dg,db,rows,cols,eps);
 }

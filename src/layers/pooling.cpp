@@ -57,7 +57,7 @@ Tensor Pooling::backward(const Tensor& dY,float learning_rate)
 {
     if(!this->is_training||index==nullptr) return Tensor();
     Tensor dX(cached_input_shape);
-    cudaMemset(dX.data(),0,dX.total_elements()*sizeof(float));
+    dX.zero_();
 
     maxpool_backward_cuda(dY.data(),dX.data(),index,(int)dY.total_elements(),cached_input_size);
     return dX;

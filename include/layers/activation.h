@@ -4,7 +4,8 @@
 
 enum class ActivationType
 {
-    LEAKY_RELU
+    LEAKY_RELU,
+    SIGMOID
 };
 
 class Activation:public Layer

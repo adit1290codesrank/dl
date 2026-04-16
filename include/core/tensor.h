@@ -38,5 +38,6 @@ class Tensor
         Tensor operator+(const Tensor& other) const;
         Tensor slice(int start_row,int num_rows) const;
         Tensor clone() const;
+        void zero_();
         size_t total_elements() const;
 };

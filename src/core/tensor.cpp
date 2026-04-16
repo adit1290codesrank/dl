@@ -56,7 +56,7 @@ std::vector<float> Tensor::download() const
 Tensor Tensor::zeros(int r,int c)
 {
     Tensor t(r,c);
-    cudaMemset(t.data(),0,r*c*sizeof(float));
+    t.zero_();
     return t;
 }
 
@@ -137,6 +137,11 @@ Tensor Tensor::clone() const
     Tensor t(this->shape);
     cudaMemcpy(t.data(),this->data(),this->total_elements()*sizeof(float),cudaMemcpyDeviceToDevice);
     return t;
+}
+
+void Tensor::zero_()
+{
+    cudaMemset(this->data(),0,this->total_elements()*sizeof(float));
 }
 
 
