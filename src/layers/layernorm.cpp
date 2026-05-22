@@ -65,3 +65,19 @@ Tensor LayerNorm::backward(const Tensor& dY,float lr)
 
     return dX;
 }
+
+void LayerNorm::save(std::ofstream& os)
+{
+    std::vector<float> hg=g.download(),hb=b.download();
+    os.write(reinterpret_cast<const char*>(hg.data()),hg.size()*sizeof(float));
+    os.write(reinterpret_cast<const char*>(hb.data()),hb.size()*sizeof(float));
+}
+
+void LayerNorm::load(std::ifstream& is)
+{
+    std::vector<float> hg(dimension),hb(dimension);
+    is.read(reinterpret_cast<char*>(hg.data()),hg.size()*sizeof(float));
+    is.read(reinterpret_cast<char*>(hb.data()),hb.size()*sizeof(float));
+    g=Tensor::upload(hg,1,dimension);
+    b=Tensor::upload(hb,1,dimension);
+}

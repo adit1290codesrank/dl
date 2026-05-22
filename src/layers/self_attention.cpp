@@ -10,11 +10,13 @@ void adam_cuda(Tensor& W,const Tensor& grad,Tensor& m,Tensor& v,float lr,int t,i
 void attention_scale_cuda(float* data,float scale,int size);
 void attention_softmax_cuda(float* data,int rows,int cols);
 void attention_softmax_backward_cuda(const float* dY,const float* Y,float* dX,int rows,int cols);
+void full_attention_softmax_cuda(float* data,int rows,int cols);
+void full_attention_softmax_backward_cuda(const float* dY,const float* Y,float* dX,int rows,int cols);
 void split_heads_cuda(const float* input,float* output,int N,int T,int H,int dk);
 void merge_heads_cuda(const float* input,float* output,int N,int T,int H,int dk);
 void batched_matmul_cuda(const float* A,bool transA,const float* B,bool transB,float* C,int batch,int M,int K,int N);
 
-SelfAttention::SelfAttention(int dimension,int heads):dimension(dimension),heads(heads),t(0)
+SelfAttention::SelfAttention(int dimension,int heads,bool causal):dimension(dimension),heads(heads),causal(causal),t(0)
 {
     if(dimension%heads!=0) throw std::invalid_argument("Dimension must be divisible by number of heads");
     int head_dim=dimension/heads;
@@ -103,7 +105,8 @@ Tensor SelfAttention::forward(const Tensor& input)
     // 6. Softmax per row: each row of T scores
     Tensor attn({N*H,T,T});
     cudaMemcpy(attn.data(),scores.data(),N*H*T*T*sizeof(float),cudaMemcpyDeviceToDevice);
-    attention_softmax_cuda(attn.data(),N*H*T,T);
+    if(causal) attention_softmax_cuda(attn.data(),N*H*T,T);
+    else full_attention_softmax_cuda(attn.data(),N*H*T,T);
     cached_attention=attn;
 
     // 7. Context = Attention @ V -> (N*H, T, dk)
@@ -171,7 +174,8 @@ Tensor SelfAttention::backward(const Tensor& dY,float lr)
 
     // 6. Backward through softmax
     Tensor dScores({N*H,T,T});
-    attention_softmax_backward_cuda(dAttn.data(),cached_attention.data(),dScores.data(),N*H*T,T);
+    if(causal) attention_softmax_backward_cuda(dAttn.data(),cached_attention.data(),dScores.data(),N*H*T,T);
+    else full_attention_softmax_backward_cuda(dAttn.data(),cached_attention.data(),dScores.data(),N*H*T,T);
 
     // 5. Backward through scale
     attention_scale_cuda(dScores.data(),scale,N*H*T*T);
@@ -216,4 +220,16 @@ Tensor SelfAttention::backward(const Tensor& dY,float lr)
     if(cached_input.shape.size()==3) dInput.shape={N,T,D};
 
     return dInput;
+}
+
+void SelfAttention::save(std::ofstream& os)
+{
+    auto s=[&](const Tensor& t){std::vector<float> h=t.download();os.write(reinterpret_cast<const char*>(h.data()),h.size()*sizeof(float));};
+    s(wQ);s(wK);s(wV);s(wO);
+}
+
+void SelfAttention::load(std::ifstream& is)
+{
+    auto l=[&](Tensor& t){std::vector<float> h(dimension*dimension);is.read(reinterpret_cast<char*>(h.data()),h.size()*sizeof(float));t=Tensor::upload(h,dimension,dimension);};
+    l(wQ);l(wK);l(wV);l(wO);
 }

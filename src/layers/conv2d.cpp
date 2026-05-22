@@ -8,14 +8,17 @@ void sum_rows_cuda(const Tensor& dY, Tensor& db);
 void add_bias_cuda(Tensor& Y, const Tensor& b);
 Tensor matrix_multiply(const Tensor& A,bool transA,const Tensor& B,bool transB);
 
-Conv2D::Conv2D(int d1,int d2,int f,int p,int s):d1(d1),d2(d2),f(f),p(p),s(s),t(0)
+Conv2D::Conv2D(int d1,int d2,int f,int p,int s,InitializerType init_type):d1(d1),d2(d2),f(f),p(p),s(s),t(0)
 {
     std::vector<float> h_w(d1*d2*f*f);
     std::vector<float> h_b(d2,0.0f);
 
-    //He initialization
+    float std_dev;
+    if(init_type==InitializerType::XAVIER) std_dev=std::sqrt(1.0f/(d1*f*f));
+    else std_dev=std::sqrt(2.0f/(d1*f*f));
+
     std::mt19937 gen(42);
-    std::normal_distribution<float> dist(0.0f,std::sqrt(2.0f/(d1*f*f)));
+    std::normal_distribution<float> dist(0.0f,std_dev);
 
     for(int i=0;i<d1*d2*f*f;i++) h_w[i]=dist(gen);
     w=Tensor::upload(h_w,d1*f*f,d2);

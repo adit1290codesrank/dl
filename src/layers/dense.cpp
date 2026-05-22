@@ -7,14 +7,17 @@ void sum_rows_cuda(const Tensor& dY, Tensor& db);
 void add_bias_cuda(Tensor& Y, const Tensor& b);
 Tensor matrix_multiply(const Tensor& A,bool transA,const Tensor& B,bool transB);
 
-Dense::Dense(int input_size,int output_size):input_size(input_size),output_size(output_size),t(0)
+Dense::Dense(int input_size,int output_size,InitializerType init_type):input_size(input_size),output_size(output_size),t(0)
 {
     std::vector<float> h_w(input_size*output_size);
     std::vector<float> h_b(output_size,0.0f);
 
-    //He initialization
+    float std_dev;
+    if(init_type==InitializerType::XAVIER) std_dev=std::sqrt(1.0f/input_size);
+    else std_dev=std::sqrt(2.0f/input_size);
+
     std::mt19937 gen(42);
-    std::normal_distribution<float> dist(0.0f,std::sqrt(2.0f/input_size));
+    std::normal_distribution<float> dist(0.0f,std_dev);
 
     for(int i=0;i<input_size*output_size;i++) h_w[i]=dist(gen);
 

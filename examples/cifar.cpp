@@ -8,41 +8,36 @@
 #include "include/layers/activation.h"
 #include "include/layers/batchnorm1d.h"
 #include "include/layers/batchnorm2d.h"
-#include "include/layers/augment.h"
 #include "include/layers/softmax.h"
 #include "include/layers/reshape.h"
 #include "include/layers/dropout.h"
+#include "include/core/loss.h"
+#include "include/utils/cifar_loader.h"
+#include "include/layers/augment.h"
 #include <iostream>
-#include <fstream>
-#include <vector>
-#include <stdexcept>
 
-int main(int argc, char* argv[])
+int main()
 {
-    if (argc < 2)
+    std::vector<float> X_train, Y_train;
+    int samples=0;
+    const int classes=10;
+    const int input=32*32*3;
+
+    std::vector<std::string> train_files = 
     {
-        std::cerr << "Usage: cifar_app.exe <preprocessed_image.bin>" << std::endl;
-        std::cerr << "  image.bin: 32*32*3 = 3072 raw float32 values in HWC order, normalized [0,1]" << std::endl;
-        return 1;
-    }
- 
-    std::ifstream f(argv[1], std::ios::binary);
-    if (!f.is_open())
+        "./data/cifar-10-batches-bin/data_batch_1.bin",
+        "./data/cifar-10-batches-bin/data_batch_2.bin",
+        "./data/cifar-10-batches-bin/data_batch_3.bin",
+        "./data/cifar-10-batches-bin/data_batch_4.bin",
+        "./data/cifar-10-batches-bin/data_batch_5.bin",
+    };
+
+    if (!load_cifar10(train_files, X_train, Y_train, samples, classes))
     {
-        std::cerr << "ERROR: Cannot open input file: " << argv[1] << std::endl;
-        return 1;
+        std::cerr << "Failed to load CIFAR-10!" << std::endl;
+        return -1;
     }
- 
-    const int input_size = 32 * 32 * 3;
-    std::vector<float> img(input_size);
-    f.read(reinterpret_cast<char*>(img.data()), input_size * sizeof(float));
- 
-    if (f.gcount() != input_size * (int)sizeof(float))
-    {
-        std::cerr << "ERROR: Input file is wrong size. Expected " << input_size * sizeof(float) << " bytes." << std::endl;
-        return 1;
-    }
- 
+
     Network net;
 
     net.add(std::make_unique<Reshape>(std::vector<int>{32, 32, 3}));
@@ -72,24 +67,13 @@ int main(int argc, char* argv[])
     net.add(std::make_unique<Dense>(128, 10));
     net.add(std::make_unique<Softmax>());
 
-    net.load("cifar10_weights.bin"); 
+    net.fit(X_train, Y_train, samples, input, classes,
+            80,       
+            1,        
+            0.001f,   
+            128,      
+            LossType::CROSS_ENTROPY);
 
-    Tensor d_input = Tensor::upload(img, 1, input_size);
-    Tensor d_output = net.predict(d_input);
-    std::vector<float> probs = d_output.download();
- 
-    const char* classes[10] = {
-        "airplane", "automobile", "bird", "cat", "deer",
-        "dog", "frog", "horse", "ship", "truck"
-    };
- 
-    std::cout << "{";
-    for (int i = 0; i < 10; i++)
-    {
-        std::cout << "\"" << classes[i] << "\":" << probs[i];
-        if (i < 9) std::cout << ",";
-    }
-    std::cout << "}" << std::endl;
- 
+    net.save("weights/cifar10_weights.bin");
     return 0;
 }

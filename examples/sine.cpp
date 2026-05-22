@@ -42,8 +42,8 @@ int main()
     std::cout<<"Training on y=sin(x)..."<<std::endl;
     net.fit(X_train,Y_train,n_samples,1,1,epochs,10,lr,batch_size,LossType::MSE);
     
-    std::cout<<"\nSaving trained model to sin_model.bin..."<<std::endl;
-    net.save("sin_model.bin");
+    std::cout<<"\nSaving trained model to weights/sin_model.bin..."<<std::endl;
+    net.save("weights/sin_model.bin");
     
     std::cout<<"Creating fresh network and loading weights..."<<std::endl;
     Network test_net;
@@ -58,7 +58,7 @@ int main()
 
     test_net.add(std::make_unique<Dense>(128,1));
     
-    test_net.load("sin_model.bin");
+    test_net.load("weights/sin_model.bin");
     test_net.eval();
     
     int test_points=400;
@@ -73,7 +73,7 @@ int main()
     Tensor d_preds=test_net.predict(d_X_test);
     std::vector<float> h_preds=d_preds.download();
     
-    std::ofstream out("sin_results.csv");
+    std::ofstream out("outputs/sin_results.csv");
     out<<"x,y_true,y_pred\n";
     for(int i=0;i<test_points;++i)
     {
@@ -82,6 +82,6 @@ int main()
     }
     out.close();
     
-    std::cout<<"Exported predictions from LOADED model to sin_results.csv"<<std::endl;
+    std::cout<<"Exported predictions from LOADED model to outputs/sin_results.csv"<<std::endl;
     return 0;
 }

@@ -72,8 +72,8 @@ int main()
     ); 
 
     std::cout << "\nTraining Complete! Saving weights..." << std::endl;
-    ConvNet.save("emnist_t4_weights.bin");
-    std::cout << "Weights successfully saved to emnist_weights.bin" << std::endl;
+    ConvNet.save("weights/emnist_t4_weights.bin");
+    std::cout << "Weights successfully saved to weights/emnist_t4_weights.bin" << std::endl;
 
     return 0;
 }

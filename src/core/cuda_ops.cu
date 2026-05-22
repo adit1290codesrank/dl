@@ -228,6 +228,76 @@ __global__ void sigmoid_backward_kernel(const float* dY, const float* cached_X, 
     }
 }
 
+__global__ void gelu_forward_kernel(float* Y, int size)
+{
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < size) {
+        float x = Y[index];
+        float v = 0.7978845608f * (x + 0.044715f * x * x * x);
+        Y[index] = 0.5f * x * (1.0f + tanhf(v));
+    }
+}
+
+__global__ void gelu_backward_kernel(const float* dY, const float* cached_X, float* dX, int size)
+{
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < size) {
+        float x = cached_X[index];
+        float x3 = x * x * x;
+        float v = 0.7978845608f * (x + 0.044715f * x3);
+        float t = tanhf(v);
+        float sech2 = 1.0f - t * t;
+        float dv_dx = 0.7978845608f * (1.0f + 0.134145f * x * x);
+        dX[index] = dY[index] * (0.5f * (1.0f + t) + 0.5f * x * sech2 * dv_dx);
+    }
+}
+
+__global__ void tanh_forward_kernel(float* Y, int size)
+{
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < size) Y[index] = tanhf(Y[index]);
+}
+
+__global__ void tanh_backward_kernel(const float* dY, const float* cached_X, float* dX, int size)
+{
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < size) {
+        float t = tanhf(cached_X[index]);
+        dX[index] = dY[index] * (1.0f - t * t);
+    }
+}
+
+__global__ void relu_forward_kernel(float* Y, int size)
+{
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < size) Y[index] = Y[index] > 0.0f ? Y[index] : 0.0f;
+}
+
+__global__ void relu_backward_kernel(const float* dY, const float* cached_X, float* dX, int size)
+{
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < size) dX[index] = cached_X[index] > 0.0f ? dY[index] : 0.0f;
+}
+
+__global__ void silu_forward_kernel(float* Y, int size)
+{
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < size) {
+        float x = Y[index];
+        Y[index] = x / (1.0f + expf(-x));
+    }
+}
+
+__global__ void silu_backward_kernel(const float* dY, const float* cached_X, float* dX, int size)
+{
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < size) {
+        float x = cached_X[index];
+        float s = 1.0f / (1.0f + expf(-x));
+        dX[index] = dY[index] * (s * (1.0f + x * (1.0f - s)));
+    }
+}
+
 __global__ void softmax_kernel(const float* X,float* Y,int n,int m)
 {
     int index=blockDim.x*blockIdx.x+threadIdx.x;
@@ -569,7 +639,7 @@ __global__ void attention_softmax_kernel(float* data,int rows,int cols)
         int token_pos=row%cols;
 
         // Causal mask: set future positions to -inf
-        for(int i=token_pos+1;i<cols;i++) row_ptr[i]=-INFINITY;
+        for(int i=token_pos+1;i<cols;i++) row_ptr[i]=-1e38f;
 
         float max_val=row_ptr[0];
         for(int i=1;i<=token_pos;i++) if(row_ptr[i]>max_val) max_val=row_ptr[i];
@@ -600,6 +670,42 @@ __global__ void attention_softmax_backward_kernel(const float* dY,const float* Y
 
         for(int i=0;i<=token_pos;i++) dX[offset+i]=Y[offset+i]*(dY[offset+i]-dot);
         for(int i=token_pos+1;i<cols;i++) dX[offset+i]=0.0f;
+    }
+}
+
+__global__ void full_attention_softmax_kernel(float* data,int rows,int cols)
+{
+    int row=blockIdx.x*blockDim.x+threadIdx.x;
+    if(row<rows)
+    {
+        float* row_ptr=data+row*cols;
+
+        float max_val=row_ptr[0];
+        for(int i=1;i<cols;i++) if(row_ptr[i]>max_val) max_val=row_ptr[i];
+
+        float sum=0.0f;
+        for(int i=0;i<cols;i++)
+        {
+            row_ptr[i]=expf(row_ptr[i]-max_val);
+            sum+=row_ptr[i];
+        }
+
+        float inv_sum=1.0f/sum;
+        for(int i=0;i<cols;i++) row_ptr[i]*=inv_sum;
+    }
+}
+
+__global__ void full_attention_softmax_backward_kernel(const float* dY,const float* Y,float* dX,int rows,int cols)
+{
+    int row=blockIdx.x*blockDim.x+threadIdx.x;
+    if(row<rows)
+    {
+        int offset=row*cols;
+
+        float dot=0.0f;
+        for(int i=0;i<cols;i++) dot+=dY[offset+i]*Y[offset+i];
+
+        for(int i=0;i<cols;i++) dX[offset+i]=Y[offset+i]*(dY[offset+i]-dot);
     }
 }
 
@@ -713,6 +819,18 @@ void attention_softmax_backward_cuda(const float* dY,const float* Y,float* dX,in
     attention_softmax_backward_kernel<<<blocks,BLOCK_SIZE>>>(dY,Y,dX,rows,cols);
 }
 
+void full_attention_softmax_cuda(float* data,int rows,int cols)
+{
+    int blocks=(rows+BLOCK_SIZE-1)/BLOCK_SIZE;
+    full_attention_softmax_kernel<<<blocks,BLOCK_SIZE>>>(data,rows,cols);
+}
+
+void full_attention_softmax_backward_cuda(const float* dY,const float* Y,float* dX,int rows,int cols)
+{
+    int blocks=(rows+BLOCK_SIZE-1)/BLOCK_SIZE;
+    full_attention_softmax_backward_kernel<<<blocks,BLOCK_SIZE>>>(dY,Y,dX,rows,cols);
+}
+
 void split_heads_cuda(const float* input,float* output,int N,int T,int H,int dk)
 {
     int total=N*H*T*dk;
@@ -731,8 +849,8 @@ void batched_matmul_cuda(const float* A,bool transA,const float* B,bool transB,f
 {
     cublasHandle_t handle=CudaContext::get_instance().get_cublas_handle();
 
-    cublasOperation_t opA_cublas=transA?CUBLAS_OP_N:CUBLAS_OP_T;
-    cublasOperation_t opB_cublas=transB?CUBLAS_OP_N:CUBLAS_OP_T;
+    cublasOperation_t opA_cublas=transA?CUBLAS_OP_T:CUBLAS_OP_N;
+    cublasOperation_t opB_cublas=transB?CUBLAS_OP_T:CUBLAS_OP_N;
 
     int lda_cublas=transA?M:K;    
     int ldb_cublas=transB?K:N;   
@@ -950,6 +1068,70 @@ void sigmoid_backward_cuda(const Tensor& dY, const Tensor& cached_X, Tensor& dX)
     int threads = BLOCK_SIZE;
     int blocks = (size + threads - 1) / threads;
     sigmoid_backward_kernel<<<blocks, threads>>>(dY.data(), cached_X.data(), dX.data(), size);
+}
+
+void gelu_forward_cuda(Tensor& Y)
+{
+    int size = Y.rows() * Y.cols();
+    int threads = BLOCK_SIZE;
+    int blocks = (size + threads - 1) / threads;
+    gelu_forward_kernel<<<blocks, threads>>>(Y.data(), size);
+}
+
+void gelu_backward_cuda(const Tensor& dY, const Tensor& cached_X, Tensor& dX)
+{
+    int size = dY.rows() * dY.cols();
+    int threads = BLOCK_SIZE;
+    int blocks = (size + threads - 1) / threads;
+    gelu_backward_kernel<<<blocks, threads>>>(dY.data(), cached_X.data(), dX.data(), size);
+}
+
+void tanh_forward_cuda(Tensor& Y)
+{
+    int size = Y.rows() * Y.cols();
+    int threads = BLOCK_SIZE;
+    int blocks = (size + threads - 1) / threads;
+    tanh_forward_kernel<<<blocks, threads>>>(Y.data(), size);
+}
+
+void tanh_backward_cuda(const Tensor& dY, const Tensor& cached_X, Tensor& dX)
+{
+    int size = dY.rows() * dY.cols();
+    int threads = BLOCK_SIZE;
+    int blocks = (size + threads - 1) / threads;
+    tanh_backward_kernel<<<blocks, threads>>>(dY.data(), cached_X.data(), dX.data(), size);
+}
+
+void relu_forward_cuda(Tensor& Y)
+{
+    int size = Y.rows() * Y.cols();
+    int threads = BLOCK_SIZE;
+    int blocks = (size + threads - 1) / threads;
+    relu_forward_kernel<<<blocks, threads>>>(Y.data(), size);
+}
+
+void relu_backward_cuda(const Tensor& dY, const Tensor& cached_X, Tensor& dX)
+{
+    int size = dY.rows() * dY.cols();
+    int threads = BLOCK_SIZE;
+    int blocks = (size + threads - 1) / threads;
+    relu_backward_kernel<<<blocks, threads>>>(dY.data(), cached_X.data(), dX.data(), size);
+}
+
+void silu_forward_cuda(Tensor& Y)
+{
+    int size = Y.rows() * Y.cols();
+    int threads = BLOCK_SIZE;
+    int blocks = (size + threads - 1) / threads;
+    silu_forward_kernel<<<blocks, threads>>>(Y.data(), size);
+}
+
+void silu_backward_cuda(const Tensor& dY, const Tensor& cached_X, Tensor& dX)
+{
+    int size = dY.rows() * dY.cols();
+    int threads = BLOCK_SIZE;
+    int blocks = (size + threads - 1) / threads;
+    silu_backward_kernel<<<blocks, threads>>>(dY.data(), cached_X.data(), dX.data(), size);
 }
 
 void adam_cuda(Tensor& W,const Tensor& grad,Tensor& m,Tensor& v,float lr,int t,int size,float lamda=0.001f)

@@ -4,9 +4,12 @@ import joblib
 from sqlalchemy import create_engine, text
 from sklearn.preprocessing import LabelEncoder
 from dotenv import load_dotenv
+from pathlib import Path
 
 load_dotenv()
 engine = create_engine(os.getenv("DATABASE_URL"))
+
+ROOT_DIR = Path(__file__).parent.parent
 
 def extract_for_transformer():
     print("--- 🧠 DATA PIPELINE: SPATIOTEMPORAL TRANSFORMER ---")
@@ -83,7 +86,8 @@ def extract_for_transformer():
 
     # 3. Export clean sequence data for C++ Engine
     export_df = df[['hour_idx', 'day_idx', 'loc_idx', 'node_idx', 'utilization_rate']]
-    export_df.to_csv("transformer_data.csv", index=False)
+    csv_out = ROOT_DIR / "outputs" / "transformer_data.csv"
+    export_df.to_csv(str(csv_out), index=False)
 
     # 4. Save the artifact (You need the Encoders + Offsets for inference later!)
     artifact = {
@@ -92,9 +96,10 @@ def extract_for_transformer():
         "offsets": {"hour": OFFSET_HOUR, "day": OFFSET_DAY, "loc": OFFSET_LOC, "node": OFFSET_NODE},
         "total_vocab": TOTAL_VOCAB
     }
-    joblib.dump(artifact, "transformer_metadata.pkl")
+    pkl_out = ROOT_DIR / "weights" / "transformer_metadata.pkl"
+    joblib.dump(artifact, str(pkl_out))
     
-    print(f"✅ Exported {len(df)} rows to CSV.")
+    print(f"✅ Exported {len(df)} rows to CSV at {csv_out}.")
     print(f"✅ TOTAL_VOCAB_SIZE required for C++: {TOTAL_VOCAB}")
 
 if __name__ == "__main__":

@@ -55,9 +55,8 @@ int main()
 
     Network net;
 
-    // Same architecture as cifar.cpp
     net.add(std::make_unique<Reshape>(std::vector<int>{32, 32, 3}));
-    net.add(std::make_unique<Augment>(32, 32, 3, 4, 8)); // Keeping it to maintain layer alignment during load()
+    net.add(std::make_unique<Augment>(32, 32, 3, 4, 8));
 
     net.add(std::make_unique<Conv2D>(3, 64, 3, 1, 1));
     net.add(std::make_unique<BatchNorm2D>(64));
@@ -84,14 +83,14 @@ int main()
     net.add(std::make_unique<Softmax>());
 
     try {
-        net.load("cifar10_weights.bin");
+        net.load("weights/cifar10_weights.bin");
     } catch(const std::exception& e) {
         std::cerr << "Error loading weights: " << e.what() << std::endl;
         return -1;
     }
 
     auto evaluate = [&](const std::vector<float>& X, const std::vector<float>& Y, int samples, const std::string& dataset_name) {
-        int batch_size = 256; // Adjust if necessary for optimal VRAM usage (6GB should comfortably handle 256)
+        int batch_size = 256;
         int correct = 0;
         int num_batches = (samples + batch_size - 1) / batch_size;
 

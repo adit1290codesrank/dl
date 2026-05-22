@@ -1,6 +1,6 @@
 #pragma once
 #include "layer.h"
-#include "../core/tensor.h"
+#include "initializer.h"
 
 class Conv2D:public Layer
 {
@@ -18,7 +18,7 @@ class Conv2D:public Layer
         Tensor cached_col;
     
     public:
-        Conv2D(int d1,int d2,int f,int p,int s);
+        Conv2D(int d1,int d2,int f,int p,int s,InitializerType init_type=InitializerType::HE);
 
         Tensor forward(const Tensor& input) override;
         Tensor backward(const Tensor& grad,float learning_rate) override;

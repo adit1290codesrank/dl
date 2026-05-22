@@ -6,7 +6,7 @@ void leaky_relu_forward_cuda(Tensor& Y,float alpha);
 void add_bias_cuda(Tensor& Y, const Tensor& b);
 Tensor matrix_multiply(const Tensor& A,bool transA,const Tensor& B,bool transB);
 
-Transformer::Transformer(int dimension,int heads):dimension(dimension),attention(dimension,heads),ln1(dimension),ln2(dimension),d1(dimension,dimension*4),act(ActivationType::LEAKY_RELU,0.01f),d2(dimension*4,dimension){}
+Transformer::Transformer(int dimension,int heads,bool causal):dimension(dimension),attention(dimension,heads,causal),ln1(dimension),ln2(dimension),d1(dimension,dimension*4),act(ActivationType::LEAKY_RELU,0.01f),d2(dimension*4,dimension){}
 
 Tensor Transformer::forward(const Tensor& X)
 {
@@ -56,4 +56,17 @@ Tensor Transformer::backward(const Tensor& dY,float lr)
     return dinput;
 }
 
+void Transformer::save(std::ofstream& os)
+{
+    attention.save(os);ln1.save(os);ln2.save(os);d1.save(os);d2.save(os);
+}
 
+void Transformer::load(std::ifstream& is)
+{
+    attention.load(is);ln1.load(is);ln2.load(is);d1.load(is);d2.load(is);
+}
+
+void Transformer::set_mode(bool train)
+{
+    attention.set_mode(train);ln1.set_mode(train);ln2.set_mode(train);d1.set_mode(train);d2.set_mode(train);
+}

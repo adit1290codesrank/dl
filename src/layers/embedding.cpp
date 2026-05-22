@@ -44,3 +44,16 @@ Tensor Embedding::backward(const Tensor& dY, float lr)
 
     return Tensor();
 }
+
+void Embedding::save(std::ofstream& os)
+{
+    std::vector<float> h=w.download();
+    os.write(reinterpret_cast<const char*>(h.data()),h.size()*sizeof(float));
+}
+
+void Embedding::load(std::ifstream& is)
+{
+    std::vector<float> h(size*dimension);
+    is.read(reinterpret_cast<char*>(h.data()),h.size()*sizeof(float));
+    w=Tensor::upload(h,size,dimension);
+}

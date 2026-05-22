@@ -1,5 +1,6 @@
 #pragma once
 #include "layer.h"
+#include <fstream>
 #include "../core/tensor.h"
 
 class Embedding:public Layer
@@ -20,5 +21,8 @@ class Embedding:public Layer
 
         Tensor forward(const Tensor& input) override;
         Tensor backward(const Tensor& grad, float lr) override;
+
+        void save(std::ofstream& os) override;
+        void load(std::ifstream& is) override;
 };
 

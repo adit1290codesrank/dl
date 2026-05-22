@@ -1,5 +1,6 @@
 #pragma once
 #include "layer.h"
+#include <fstream>
 #include "../core/tensor.h"
 
 class SelfAttention:public Layer
@@ -8,6 +9,7 @@ class SelfAttention:public Layer
         int dimension;
         int heads;
         float scale;
+        bool causal;
 
         Tensor wQ,wK,wV,wO;
         Tensor dwQ,dwK,dwV,dwO;
@@ -23,8 +25,11 @@ class SelfAttention:public Layer
         Tensor cached_attention;
 
     public:
-        SelfAttention(int dimension,int heads);
+        SelfAttention(int dimension,int heads,bool causal=true);
         
         Tensor forward(const Tensor& input) override;
         Tensor backward(const Tensor& grad, float lr) override;
+
+        void save(std::ofstream& os) override;
+        void load(std::ifstream& is) override;
 };

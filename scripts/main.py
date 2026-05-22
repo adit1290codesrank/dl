@@ -13,8 +13,10 @@ import pillow_avif
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024  # 8 MB upload limit
 
-PREDICT_BINARY = "cifar_app.exe"
-WEIGHTS_FILE   = "cifar10_weights.bin"
+# Resolve relative to project root (parent of scripts/)
+ROOT_DIR = Path(__file__).parent.parent
+PREDICT_BINARY = str(ROOT_DIR / "cifar_app.exe")
+WEIGHTS_FILE   = str(ROOT_DIR / "weights" / "cifar10_weights.bin")
 
 CIFAR_CLASSES = [
     "airplane", "automobile", "bird", "cat", "deer",
@@ -360,12 +362,12 @@ def run_predict(bin_path: str) -> dict:
     if not Path(PREDICT_BINARY).exists():
         raise FileNotFoundError(
             f"Predict binary '{PREDICT_BINARY}' not found. "
-            "Run: make predict"
+            "Build the project first with: build.bat examples/cifar_app.cpp"
         )
     if not Path(WEIGHTS_FILE).exists():
         raise FileNotFoundError(
             f"Weights file '{WEIGHTS_FILE}' not found. "
-            "Train the model first with: make cifar && ./cifar"
+            "Train the model first with: build.bat examples/cifar.cpp && cifar.exe"
         )
 
     binary_path = str(Path(PREDICT_BINARY).resolve())
@@ -374,7 +376,7 @@ def run_predict(bin_path: str) -> dict:
         capture_output=True,
         text=True,
         timeout=30,
-        cwd=str(Path(__file__).parent),
+        cwd=str(ROOT_DIR),
     )
 
     if result.returncode != 0:

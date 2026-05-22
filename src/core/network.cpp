@@ -26,11 +26,14 @@ void Network::fit(const std::vector<float>& X,const std::vector<float>& Y,int n,
     float max_lr=learning_rate,min_lr=0.00001f;
 
     // --- NEW: Open a log file to track loss ---
-    std::ofstream log_file("training_loss.csv");
-    if (log_file.is_open()) {
-        log_file << "Epoch,Loss\n"; // CSV Header
-    } else {
-        std::cerr << "Warning: Could not open training_loss.csv for writing." << std::endl;
+    std::ofstream log_file("outputs/training_loss.csv");
+    if (log_file.is_open())
+    {
+        log_file << "Epoch,Loss,LR" << std::endl;
+    }
+    else
+    {
+        std::cerr << "Warning: Could not open outputs/training_loss.csv for writing." << std::endl;
     }
 
     for(int e=1;e<=epochs;e++)

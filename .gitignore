@@ -12,9 +12,11 @@ data/
 .DS_Store
 *.swp
 
-
-data/
-*.bin
 *.gz
 
 *.bat
+*.csv
+*.png
+
+outputs/
+weights/*.bin
