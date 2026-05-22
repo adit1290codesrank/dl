@@ -473,10 +473,11 @@ __global__ void dropout_forward_kernel(const float* X,float* Y,float *mask,int s
     int index=blockIdx.x*blockDim.x+threadIdx.x;
     if(index<size)
     {
-        curandStatePhilox4_32_10_t state;
-        curand_init(seed,index,0,&state);
-
-        float val=curand_uniform(&state);
+        unsigned int s = (unsigned int)seed ^ ((unsigned int)index * 1664525 + 1013904223);
+        s ^= s >> 16; s *= 0x85ebca6b;
+        s ^= s >> 13; s *= 0xc2b2ae35;
+        s ^= s >> 16;
+        float val = (float)s / 4294967296.0f;
         if(val<rate)
         {
             mask[index]=0.0f;
