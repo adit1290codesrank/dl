@@ -38,14 +38,11 @@ def tokenize(text):
     return re.findall(r'\b\w+\b', text.lower())
 
 def main():
-    print("Loading CLINC150 dataset from HuggingFace...")
-    dataset = load_dataset("clinc_oos", "small")
+    print("Loading FULL CLINC150 dataset from HuggingFace...")
+    dataset = load_dataset("clinc_oos", "plus")
     intent_names = dataset['train'].features['intent'].names
 
-    target_intents = [
-        "alarm", "timer", "weather", "play_music", "volume_up",
-        "volume_down", "smart_home", "reminder", "calendar", "news"
-    ]
+    target_intents = intent_names
 
     target_ids = []
     for name in target_intents:
@@ -68,7 +65,7 @@ def main():
             val_data.append((item['text'], target_ids.index(item['intent'])))
 
     # Augment training data (3x)
-    print(f"Original train size: {len(train_data)}")
+    print(f"Extracted {len(train_data)} training examples.")
     augmented_train = []
     for text, label in train_data:
         augmented_train.append((text, label))
@@ -106,11 +103,8 @@ def main():
             
             tokens_list.append(ids)
             
-            # Label Smoothing (epsilon = 0.1)
-            epsilon = 0.1
-            num_classes = len(target_intents)
-            label = [epsilon / (num_classes - 1)] * num_classes
-            label[label_idx] = 1.0 - epsilon
+            label = [0.0] * len(target_intents)
+            label[label_idx] = 1.0
             labels_list.append(label)
             
         return np.array(tokens_list, dtype=np.float32), np.array(labels_list, dtype=np.float32)

@@ -123,8 +123,8 @@ int main()
     try{
         AlexaDataset d=load_alexa("data/alexa.bin");
 
-        int epochs=40,bs=32,dim=64,heads=2,depth=2,cls=d.n_classes;
-        float lr_max=0.0005f;
+        int epochs=40,bs=256,dim=768,heads=12,depth=12,cls=d.n_classes;
+        float lr_max=0.0001f;
 
         std::cout<<"\n========================================"<<std::endl;
         std::cout<<"BERT on Alexa Intent Classification"<<std::endl;
@@ -146,41 +146,8 @@ int main()
         std::cout<<"\nTrain Accuracy: "<<train_acc<<"%"<<std::endl;
         std::cout<<"Val Accuracy: "<<val_acc<<"%"<<std::endl;
 
-        // Load intents for the interactive prompt
-        std::vector<std::string> intent_names;
-        std::ifstream f_intents("data/intents.txt");
-        std::string intent_name;
-        while(std::getline(f_intents, intent_name)) {
-            if (!intent_name.empty() && intent_name.back() == '\r') {
-                intent_name.pop_back();
-            }
-            if(!intent_name.empty()) intent_names.push_back(intent_name);
-        }
+        std::cout<<"\nModel Training and Evaluation Complete. Use cli.exe for interactive inference."<<std::endl;
 
-        // Initialize tokenizer
-        CorpusTokenizer tokenizer("data/vocab.txt");
-
-        std::cout<<"\n========================================"<<std::endl;
-        std::cout<<"Interactive Alexa CLI Ready!"<<std::endl;
-        std::cout<<"Type your command (or 'exit' to quit):"<<std::endl;
-        std::cout<<"========================================\n"<<std::endl;
-
-        model.set_mode(false);
-        std::string user_input;
-        while(true) {
-            std::cout<<"\n> ";
-            std::getline(std::cin, user_input);
-            if(user_input == "exit" || user_input == "quit") break;
-            if(user_input.empty()) continue;
-
-            std::vector<float> token_ids = tokenizer.encode(user_input, d.seq_len);
-            Tensor X = Tensor::upload(token_ids, {1, d.seq_len});
-            Tensor Y = model.forward(X);
-            std::vector<float> probs = Y.download();
-
-            int best_intent = argmax_alexa(probs, 0, cls);
-            std::cout<<"[Intent]: "<<intent_names[best_intent]<<std::endl;
-        }
 
     }catch(const std::exception& e){
         std::cerr<<"Error: "<<e.what()<<std::endl;
