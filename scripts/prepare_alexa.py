@@ -39,15 +39,27 @@ def tokenize(text):
 
 def main():
     print("Loading FULL CLINC150 dataset from HuggingFace...")
-    dataset = load_dataset("clinc_oos", "plus")
-    intent_names = dataset['train'].features['intent'].names
+    dataset = load_dataset("DeepPavlov/clinc_oos", "plus")
+    features = dataset['train'].features
+    
+    # DeepPavlov/clinc_oos uses 'label' (int) and 'label_text' (string) instead of a ClassLabel
+    if 'label' in features and 'label_text' in features:
+        # Extract the mapping deterministically by iterating the dataset
+        intent_map = {}
+        for item in dataset['train']:
+            intent_map[item['label']] = item['label_text']
+            if len(intent_map) == 150: # Optimization: stop early once all 150 are found
+                break
+        
+        # Sort by integer ID to ensure deterministic ordering
+        intent_names = [intent_map[i] for i in sorted(intent_map.keys())]
+        label_key = 'label'
+    else:
+        raise ValueError(f"Expected 'label' and 'label_text'. Available features: {list(features.keys())}")
 
     target_intents = intent_names
 
-    target_ids = []
-    for name in target_intents:
-        if name in intent_names:
-            target_ids.append(intent_names.index(name))
+    target_ids = list(range(len(intent_names)))
 
     print("Building custom Corpus Vocabulary...")
     counter = Counter()
