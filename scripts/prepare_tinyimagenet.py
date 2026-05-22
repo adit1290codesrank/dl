@@ -35,7 +35,9 @@ def main():
 
     print("Loading training images ...")
     X_train,Y_train=[],[]
-    for cls_name in wnids:
+    for i, cls_name in enumerate(wnids):
+        if i % 10 == 0:
+            print(f"  Processed {i}/200 classes...", end='\r')
         cls_dir=os.path.join(DIR,"train",cls_name,"images")
         if not os.path.exists(cls_dir):continue
         for fname in os.listdir(cls_dir):

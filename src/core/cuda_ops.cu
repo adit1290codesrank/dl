@@ -1241,3 +1241,52 @@ void layernorm_backward_cuda(const float* dY,const float* x_hat,const float* g,c
     int blocks=(rows+BLOCK_SIZE-1)/BLOCK_SIZE;
     layernorm_backward_kernel<<<blocks,BLOCK_SIZE>>>(dY,x_hat,g,var,dX,dg,db,rows,cols,eps);
 }
+
+/*
+Mean Pooling: average all tokens in the sequence for each batch.
+seq: [batch * seq_len * dim] -> pool: [batch * dim]
+*/
+__global__ void mean_pool_kernel(const float* seq,float* pool,int batch,int seq_len,int dim)
+{
+    int idx=blockIdx.x*blockDim.x+threadIdx.x;
+    if(idx<batch*dim)
+    {
+        int b=idx/dim;
+        int d=idx%dim;
+        float sum=0.0f;
+        for(int t=0;t<seq_len;++t)
+        {
+            sum+=seq[b*seq_len*dim+t*dim+d];
+        }
+        pool[idx]=sum/seq_len;
+    }
+}
+
+/*
+Mean Pooling Backward: distribute gradient equally to all tokens.
+pool: [batch * dim] -> seq: [batch * seq_len * dim]
+*/
+__global__ void mean_pool_backward_kernel(const float* pool,float* seq,int batch,int seq_len,int dim)
+{
+    int idx=blockIdx.x*blockDim.x+threadIdx.x;
+    if(idx<batch*seq_len*dim)
+    {
+        int b=idx/(seq_len*dim);
+        int d=idx%dim;
+        seq[idx]=pool[b*dim+d]/seq_len;
+    }
+}
+
+void mean_pool_cuda(const float* seq,float* pool,int batch,int seq_len,int dim)
+{
+    int total=batch*dim;
+    int blocks=(total+BLOCK_SIZE-1)/BLOCK_SIZE;
+    mean_pool_kernel<<<blocks,BLOCK_SIZE>>>(seq,pool,batch,seq_len,dim);
+}
+
+void mean_pool_backward_cuda(const float* pool,float* seq,int batch,int seq_len,int dim)
+{
+    int total=batch*seq_len*dim;
+    int blocks=(total+BLOCK_SIZE-1)/BLOCK_SIZE;
+    mean_pool_backward_kernel<<<blocks,BLOCK_SIZE>>>(pool,seq,batch,seq_len,dim);
+}

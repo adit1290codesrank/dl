@@ -1,6 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
+#include <cstring>
 #include <fstream>
 #include <random>
 #include <numeric>
@@ -47,7 +48,7 @@ int main()
         return 1;
     }
 
-    int epochs=50,bs=64,dim=192,heads=4,depth=6;
+    int epochs=150,bs=64,dim=192,heads=4,depth=6;
     int cls=d.num_classes,px=d.img_size*d.img_size*3;
     float lr_max=0.0005f;
 
@@ -72,12 +73,27 @@ int main()
     std::ofstream log("outputs/vit_tinyimagenet_loss.csv");
     if(log.is_open()) log<<"Epoch,Loss,ValAcc,LR\n";
 
+    std::cout << "Pre-computing dataset to floats for maximum speed (uses ~5GB RAM)..." << std::endl;
+    std::vector<float> X_train_f(d.n_train * px);
+    for(size_t i=0; i<X_train_f.size(); ++i) X_train_f[i] = d.X_train_raw[i] / 255.0f;
+
     auto t0=std::chrono::high_resolution_clock::now();
+
+    int warmup_epochs = std::max(1, std::min(10, epochs / 8));
 
     for(int e=1;e<=epochs;++e)
     {
         std::shuffle(idx.begin(),idx.end(),rng);
-        float lr=0.00001f+0.5f*(lr_max-0.00001f)*(1.0f+cosf((float)(e-1)/(float)(epochs-1)*3.14159265f));
+        
+        // Linear Warmup + Cosine Decay
+        float lr;
+        if (e <= warmup_epochs) {
+            lr = lr_max * ((float)e / warmup_epochs);
+        } else {
+            float progress = (float)(e - warmup_epochs) / (float)(epochs - warmup_epochs);
+            lr = 0.00001f + 0.5f * (lr_max - 0.00001f) * (1.0f + cosf(progress * 3.14159265f));
+        }
+
         float tot=0.0f;
 
         for(int b=0;b<nb;++b)
@@ -86,7 +102,7 @@ int main()
             for(int i=0;i<bs;++i)
             {
                 int id=idx[b*bs+i];
-                for(int j=0;j<px;++j) bX[i*px+j]=d.X_train_raw[id*px+j]/255.0f;
+                std::memcpy(&bX[i*px], &X_train_f[id*px], px * sizeof(float));
                 bY[i*cls+d.Y_train_raw[id]]=1.0f;
             }
 
