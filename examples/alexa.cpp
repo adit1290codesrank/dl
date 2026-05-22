@@ -124,7 +124,7 @@ int main()
         AlexaDataset d=load_alexa("data/alexa.bin");
 
         int epochs=40,bs=256,dim=768,heads=12,depth=12,cls=d.n_classes;
-        float lr_max=0.0001f;
+        float lr_max=0.001f;
 
         std::cout<<"\n========================================"<<std::endl;
         std::cout<<"BERT on Alexa Intent Classification"<<std::endl;
