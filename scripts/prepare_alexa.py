@@ -68,13 +68,13 @@ def main():
 
     # Extract target data and build vocab
     for item in dataset['train']:
-        if item['intent'] in target_ids:
-            train_data.append((item['text'], target_ids.index(item['intent'])))
+        if item[label_key] in target_ids:
+            train_data.append((item['text'], target_ids.index(item[label_key])))
             counter.update(tokenize(item['text']))
 
     for item in dataset['validation']:
-        if item['intent'] in target_ids:
-            val_data.append((item['text'], target_ids.index(item['intent'])))
+        if item[label_key] in target_ids:
+            val_data.append((item['text'], target_ids.index(item[label_key])))
 
     # Augment training data (3x)
     print(f"Extracted {len(train_data)} training examples.")
