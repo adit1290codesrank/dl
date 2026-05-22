@@ -195,10 +195,22 @@ class BERT:public Layer
                     Loss::compute_gradient(pred,dY,grad,LossType::CROSS_ENTROPY);
                     backward(grad,lr);
                     tot+=Loss::compute_loss(pred,dY,loss_,LossType::CROSS_ENTROPY);
+
+                    // Zero-overhead progress bar
+                    if (b % 5 == 0 || b == nb - 1) {
+                        int pct = (b * 100) / nb;
+                        std::cout << "\rEpoch " << e << "/" << epochs << " [";
+                        for (int p = 0; p < 20; p++) {
+                            if (p < pct / 5) std::cout << "=";
+                            else if (p == pct / 5) std::cout << ">";
+                            else std::cout << " ";
+                        }
+                        std::cout << "] " << pct << "%  Batch " << b << "/" << nb << std::flush;
+                    }
                 }
 
                 float avg=tot/nb;
-                std::cout<<"Epoch "<<e<<"/"<<epochs<<"  Loss: "<<avg<<"  LR: "<<lr<<std::endl;
+                std::cout<<"\rEpoch "<<e<<"/"<<epochs<<"  Loss: "<<avg<<"  LR: "<<lr<<"                            "<<std::endl;
                 if(log.is_open()){log<<e<<","<<avg<<","<<lr<<"\n";log.flush();}
             }
 
