@@ -126,6 +126,7 @@ class BERT:public Layer
         void save(const std::string& path)
         {
             std::ofstream os(path,std::ios::binary);
+            if(!os.is_open()) throw std::runtime_error("Could not open file for saving: " + path);
             token_emb.save(os);
             pos_emb.save(os);
             for(auto& b:blocks) b->save(os);
@@ -138,6 +139,7 @@ class BERT:public Layer
         void load(const std::string& path)
         {
             std::ifstream is(path,std::ios::binary);
+            if(!is.is_open()) throw std::runtime_error("Could not open file for loading: " + path);
             token_emb.load(is);
             pos_emb.load(is);
             for(auto& b:blocks) b->load(is);
