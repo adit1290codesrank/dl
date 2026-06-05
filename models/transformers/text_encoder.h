@@ -32,9 +32,9 @@ class TextEncoder : public Layer
         std::vector<std::unique_ptr<Transformer>> blocks;
 
     public:
-        TextEncoder(int vocab_size, int seq_len, int dim, int heads, int depth)
-            : vocab_size(vocab_size), seq_len(seq_len), dim(dim), depth(depth),
-              token_emb(vocab_size, dim), pos_emb(seq_len, dim), emb_drop(0.4f)
+        TextEncoder(int vocab_size, int max_len, int dim, int heads, int depth)
+            : vocab_size(vocab_size), seq_len(max_len), dim(dim), depth(depth),
+              token_emb(vocab_size, dim), pos_emb(max_len, dim), emb_drop(0.4f)
         {
             for(int i = 0; i < depth; ++i) 
                 blocks.push_back(std::make_unique<Transformer>(dim, heads, false));
@@ -43,17 +43,18 @@ class TextEncoder : public Layer
         Tensor forward(const Tensor& X) override
         {
             int batch = X.shape[0];
+            int cur_seq_len = X.shape[1];
 
             Tensor x = token_emb.forward(X);
 
-            std::vector<float> pidx(batch * seq_len);
+            std::vector<float> pidx(batch * cur_seq_len);
             for(int b = 0; b < batch; ++b) {
-                for(int t = 0; t < seq_len; ++t) {
-                    pidx[b * seq_len + t] = (float)t;
+                for(int t = 0; t < cur_seq_len; ++t) {
+                    pidx[b * cur_seq_len + t] = (float)(t % seq_len); // modulo prevents bounds error if schema is longer
                 }
             }
             
-            x = x + pos_emb.forward(Tensor::upload(pidx, {batch, seq_len}));
+            x = x + pos_emb.forward(Tensor::upload(pidx, {batch, cur_seq_len}));
             x = emb_drop.forward(x);
 
             for(auto& blk : blocks) {

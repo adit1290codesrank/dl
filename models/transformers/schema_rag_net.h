@@ -57,14 +57,31 @@ class SchemaRAGNet
             
             // Note: pointer scatter logic omitted for backprop simplicity
             // Standard Seq2Seq Projection
+            int batch = context.shape[0];
+            int seq = context.shape[1];
+            
+            context.shape = {batch * seq, dimension};
             Tensor logits = vocab_proj->forward(context);
-            return sm->forward(logits);
+            context.shape = {batch, seq, dimension};
+            
+            Tensor out = sm->forward(logits);
+            out.shape = {batch, seq, vocab_size};
+            return out;
         }
 
         Tensor backward(const Tensor& dY, float lr)
         {
-            Tensor d = sm->backward(dY, lr);
+            int batch = dY.shape[0];
+            int seq = dY.shape[1];
+            
+            Tensor flat_dY = dY;
+            flat_dY.shape = {batch * seq, vocab_size};
+            
+            Tensor d = sm->backward(flat_dY, lr);
             d = vocab_proj->backward(d, lr);
+            
+            d.shape = {batch, seq, dimension};
+            
             d = pointer_layer->backward(d, lr);
             // Propagate only into query_encoder for this simplified sequence pass
             d = query_encoder->backward(d, lr);
@@ -152,10 +169,11 @@ class SchemaRAGNet
 
                     Tensor pred = forward(dX, dS);
                     
-                    // Reshape pred from [batch, seq_len, vocab] to [batch*seq_len, vocab] for loss
+                    // Reshape to flat 2D for loss calculation
                     pred.shape = {current_bs * seq_len, vocab_size};
                     
                     Loss::compute_gradient(pred, dY, grad, LossType::CROSS_ENTROPY);
+                    grad.shape = {current_bs, seq_len, vocab_size};
                     backward(grad, lr);
                     tot_loss += Loss::compute_loss(pred, dY, loss_val, LossType::CROSS_ENTROPY);
                     
