@@ -86,9 +86,9 @@ Tensor SelfAttention::forward(const Tensor& input)
     Tensor V=matrix_multiply(input_2d,false,wV,false);
 
 
-    Tensor Qh({N*H,T,head_dim});
-    Tensor Kh({N*H,T,head_dim});
-    Tensor Vh({N*H,T,head_dim});
+    Tensor Qh = Tensor({N*H,T,head_dim});
+    Tensor Kh = Tensor({N*H,T,head_dim});
+    Tensor Vh = Tensor({N*H,T,head_dim});
     split_heads_cuda(Q.data(),Qh.data(),N,T,H,head_dim);
     split_heads_cuda(K.data(),Kh.data(),N,T,H,head_dim);
     split_heads_cuda(V.data(),Vh.data(),N,T,H,head_dim);
@@ -98,19 +98,19 @@ Tensor SelfAttention::forward(const Tensor& input)
     cachedV=Vh;
 
 
-    Tensor scores({N*H,T,T});
+    Tensor scores = Tensor({N*H,T,T});
     batched_matmul_cuda(Qh.data(),false,Kh.data(),true,scores.data(),N*H,T,head_dim,T);
     attention_scale_cuda(scores.data(),scale,N*H*T*T);
 
     // 6. Softmax per row: each row of T scores
-    Tensor attn({N*H,T,T});
+    Tensor attn = Tensor({N*H,T,T});
     cudaMemcpy(attn.data(),scores.data(),N*H*T*T*sizeof(float),cudaMemcpyDeviceToDevice);
     if(causal) attention_softmax_cuda(attn.data(),N*H*T,T);
     else full_attention_softmax_cuda(attn.data(),N*H*T,T);
     cached_attention=attn;
 
     // 7. Context = Attention @ V -> (N*H, T, dk)
-    Tensor context({N*H,T,head_dim});
+    Tensor context = Tensor({N*H,T,head_dim});
     batched_matmul_cuda(attn.data(),false,Vh.data(),false,context.data(),N*H,T,T,head_dim);
 
     // 8. Merge heads: (N*H, T, dk) -> (N*T, D)
@@ -151,7 +151,7 @@ Tensor SelfAttention::backward(const Tensor& dY,float lr)
     // dMerged = dY @ wO^T,  dwO = merged^T @ dY
     // We need merged — recompute from cached values
     // Context from cached attention and V
-    Tensor context({N*H,T,head_dim});
+    Tensor context = Tensor({N*H,T,head_dim});
     batched_matmul_cuda(cached_attention.data(),false,cachedV.data(),false,context.data(),N*H,T,T,head_dim);
     Tensor merged(NT,D);
     merge_heads_cuda(context.data(),merged.data(),N,T,H,head_dim);
@@ -160,20 +160,20 @@ Tensor SelfAttention::backward(const Tensor& dY,float lr)
     dwO=matrix_multiply(merged,true,dY_flat,false);            // (D, D)
 
     // 8. Backward through merge heads (inverse of merge = split)
-    Tensor dContext({N*H,T,head_dim});
+    Tensor dContext = Tensor({N*H,T,head_dim});
     split_heads_cuda(dMerged.data(),dContext.data(),N,T,H,head_dim);
 
     // 7. Backward through Context = Attention @ V
     // dAttn = dContext @ V^T   -> (N*H, T, T)
     // dVh   = Attention^T @ dContext -> (N*H, T, dk)
-    Tensor dAttn({N*H,T,T});
+    Tensor dAttn = Tensor({N*H,T,T});
     batched_matmul_cuda(dContext.data(),false,cachedV.data(),true,dAttn.data(),N*H,T,head_dim,T);
 
-    Tensor dVh({N*H,T,head_dim});
+    Tensor dVh = Tensor({N*H,T,head_dim});
     batched_matmul_cuda(cached_attention.data(),true,dContext.data(),false,dVh.data(),N*H,T,T,head_dim);
 
     // 6. Backward through softmax
-    Tensor dScores({N*H,T,T});
+    Tensor dScores = Tensor({N*H,T,T});
     if(causal) attention_softmax_backward_cuda(dAttn.data(),cached_attention.data(),dScores.data(),N*H*T,T);
     else full_attention_softmax_backward_cuda(dAttn.data(),cached_attention.data(),dScores.data(),N*H*T,T);
 
@@ -183,10 +183,10 @@ Tensor SelfAttention::backward(const Tensor& dY,float lr)
     // Backward through Scores = Q @ K^T
     // dQh = dScores @ K   -> (N*H, T, dk)
     // dKh = dScores^T @ Q -> (N*H, T, dk)
-    Tensor dQh({N*H,T,head_dim});
+    Tensor dQh = Tensor({N*H,T,head_dim});
     batched_matmul_cuda(dScores.data(),false,cachedK.data(),false,dQh.data(),N*H,T,T,head_dim);
 
-    Tensor dKh({N*H,T,head_dim});
+    Tensor dKh = Tensor({N*H,T,head_dim});
     batched_matmul_cuda(dScores.data(),true,cachedQ.data(),false,dKh.data(),N*H,T,T,head_dim);
 
     // 4. Backward through split heads (inverse of split = merge)

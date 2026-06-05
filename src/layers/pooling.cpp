@@ -27,7 +27,7 @@ Tensor Pooling::forward(const Tensor& input)
     int OH=(h-size)/s+1;
     int OW=(w-size)/s+1;
 
-    Tensor output({n,OH,OW,c});
+    Tensor output = Tensor({n,OH,OW,c});
 
     if(this->is_training)
     {
