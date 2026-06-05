@@ -36,6 +36,7 @@ class PointerAttention : public Layer
         Tensor cached_attention;
         
         Tensor K_frozen; // Global frozen vectors [schema_size, 2048]
+        Tensor cached_dSchema; // Gradient for schema encoder input
 
     public:
         // dimension is the embedding dim.
@@ -46,6 +47,7 @@ class PointerAttention : public Layer
         Tensor backward(const Tensor& grad, float lr) override;
 
         void set_k_frozen(const Tensor& kf) { K_frozen = kf; }
+        const Tensor& get_schema_grad() const { return cached_dSchema; }
 
         // Dual forward taking Query and Schema
         // returns {context, attention_weights}

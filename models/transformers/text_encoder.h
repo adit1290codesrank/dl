@@ -34,7 +34,7 @@ class TextEncoder : public Layer
     public:
         TextEncoder(int vocab_size, int max_len, int dim, int heads, int depth, bool causal = false)
             : vocab_size(vocab_size), seq_len(max_len), dim(dim), depth(depth),
-              token_emb(vocab_size, dim), pos_emb(max_len, dim), emb_drop(0.4f)
+              token_emb(vocab_size, dim), pos_emb(max_len, dim), emb_drop(0.1f)
         {
             for(int i = 0; i < depth; ++i) 
                 blocks.push_back(std::make_unique<Transformer>(dim, heads, causal));

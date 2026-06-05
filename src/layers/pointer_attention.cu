@@ -6,6 +6,7 @@
 
 // External CUDA kernel declarations used from the framework
 Tensor matrix_multiply(const Tensor& A, bool transA, const Tensor& B, bool transB);
+Tensor matrix_add(const Tensor& A, const Tensor& B);
 void adam_cuda(Tensor& W, const Tensor& grad, Tensor& m, Tensor& v, float lr, int t, int size, float lamda=0.001f);
 void attention_scale_cuda(float* data, float scale, int size);
 void full_attention_softmax_cuda(float* data, int rows, int cols);
@@ -280,8 +281,15 @@ Tensor PointerAttention::backward(const Tensor& grad, float lr) {
     int head_dim = D / heads;
 
     Tensor dY_flat = grad.reshape({N*T_q, D});
+
+    // Recompute merged heads output (what actually went INTO wO during forward)
+    Tensor context_recomp(std::vector<int>{N*heads, T_q, head_dim});
+    batched_matmul_cuda(cached_attention.data(), false, cachedV.data(), false, context_recomp.data(), N*heads, T_q, T_k, head_dim);
+    Tensor merged_recomp(N*T_q, D);
+    merge_heads_cuda(context_recomp.data(), merged_recomp.data(), N, T_q, heads, head_dim);
+
     Tensor dMerged = matrix_multiply(dY_flat, false, wO, true);
-    dwO = matrix_multiply(cached_query.reshape({N*T_q, D}), true, dY_flat, false);
+    dwO = matrix_multiply(merged_recomp, true, dY_flat, false);
 
     Tensor dContext(std::vector<int>{N*heads, T_q, head_dim});
     split_heads_cuda(dMerged.data(), dContext.data(), N, T_q, heads, head_dim);
@@ -371,6 +379,13 @@ Tensor PointerAttention::backward(const Tensor& grad, float lr) {
     adam_cuda(wO, dwO, mwo, vwo, lr, t, wsize);
     adam_cuda(w_gate, dw_gate, mw_gate, vw_gate, lr, t, dimension * heads);
     adam_cuda(w_proj, dw_proj, mw_proj, vw_proj, lr, t, 2048 * dimension);
+
+    // Store total schema gradient: dInput_k + dInput_v
+    // dInput_k already includes dSchema_gate contribution from the gate backward
+    cached_dSchema = matrix_add(dInput_k, dInput_v);
+    if (cached_schema.shape.size() == 3) {
+        cached_dSchema.shape = {N, T_k, D};
+    }
 
     if (cached_query.shape.size() == 3) {
         dInput_q.shape = {N, T_q, D};

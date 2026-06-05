@@ -92,7 +92,11 @@ class SchemaRAGNet
             d.shape = {batch, seq, dimension};
             
             d = pointer_layer->backward(d, lr);
-            // Propagate only into query_encoder for this simplified sequence pass
+            
+            // Backprop into schema encoder so its weights actually get trained
+            Tensor dSchema = pointer_layer->get_schema_grad();
+            schema_encoder->backward(dSchema, lr);
+            
             d = query_encoder->backward(d, lr);
             return d;
         }
