@@ -72,9 +72,9 @@ class SchemaRAGNet
             Tensor logits = vocab_proj->forward(context);
             context.shape = {batch, seq, dimension};
             
-            Tensor out = sm->forward(logits);
-            out.shape = {batch, seq, vocab_size};
-            return out;
+            Tensor final_out = sm->forward(logits);
+            final_out.shape = {batch, seq, vocab_size};
+            return final_out;
         }
 
         Tensor backward(const Tensor& dY, float lr)

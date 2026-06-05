@@ -45,9 +45,9 @@ int main()
         std::cout << "Seq Len: " << seq_len << " Vocab Size: " << vocab_size << " Schema Size: " << schema_size << std::endl;
         std::cout << "Train examples: " << n_train << std::endl;
         
-        int dim = 512; // Expanded for 5000+ dataset
-        int heads = 8;
-        int depth = 6; // Expanded for 5000+ dataset
+        int dim = 128; // Scaled down to prevent overfitting on 5k dataset
+        int heads = 4;
+        int depth = 2; // Scaled down to prevent overfitting on 5k dataset
 
         std::cout << "Initializing Dual-Encoder Architecture..." << std::endl;
         SchemaRAGNet model(vocab_size, seq_len, dim, heads, depth);
@@ -56,8 +56,8 @@ int main()
         
         model.set_k_frozen(Tensor::upload(K_frozen, {schema_size, 2048}));
         
-        // Train for 200 epochs with Cosine Annealing to fully learn the massive dataset
-        model.fit(X_train, Schema_train, Y_train, n_train, seq_len, schema_size, vocab_size, 200, 8, 2e-4f);
+        // Train for 100 epochs with Cosine Annealing to smoothly converge
+        model.fit(X_train, Schema_train, Y_train, n_train, seq_len, schema_size, vocab_size, 100, 8, 2e-4f);
 
         std::cout << "Saving weights to weights/schema_rag.bin" << std::endl;
         model.save("weights/schema_rag.bin");

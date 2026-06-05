@@ -72,9 +72,9 @@ int main()
         std::cout << "Loading BPE Tokenizer..." << std::endl;
         BPETokenizer tokenizer("data/bpe_vocab.txt", "data/bpe_merges.txt");
 
-        int dim = 512; 
-        int heads = 8;
-        int depth = 6; 
+        int dim = 128; 
+        int heads = 4;
+        int depth = 2; 
 
         std::cout << "Initializing Architecture & Loading Weights..." << std::endl;
         SchemaRAGNet model(vocab_size, seq_len, dim, heads, depth);

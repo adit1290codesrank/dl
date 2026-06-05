@@ -155,16 +155,34 @@ PointerAttention::PointerAttention(int dimension, int heads) : dimension(dimensi
     scale = 1.0f / sqrtf((float)head_dim);
 
     std::mt19937 gen(42);
-    float stddev = sqrtf(2.0f / dimension);
-    std::normal_distribution<float> dist(0.0f, stddev);
-
-    wQ = Tensor::random({dimension, dimension}, -0.02f, 0.02f);
-    wK = Tensor::random({dimension, dimension}, -0.02f, 0.02f);
-    wV = Tensor::random({dimension, dimension}, -0.02f, 0.02f);
-    wO = Tensor::random({dimension, dimension}, -0.02f, 0.02f);
     
-    w_gate = Tensor::random({dimension, heads}, -0.02f, 0.02f);
-    w_proj = Tensor::random({2048, dimension}, -0.02f, 0.02f);
+    // Standard He initialization for attention projections (fan_in = dimension)
+    float stddev_attn = sqrtf(2.0f / dimension);
+    std::normal_distribution<float> dist_attn(0.0f, stddev_attn);
+    auto init_attn = [&](int r, int c) -> Tensor {
+        std::vector<float> h(r*c);
+        for(int i=0; i<r*c; i++) h[i] = dist_attn(gen);
+        return Tensor::upload(h, r, c);
+    };
+
+    wQ = init_attn(dimension, dimension);
+    wK = init_attn(dimension, dimension);
+    wV = init_attn(dimension, dimension);
+    wO = init_attn(dimension, dimension);
+    
+    // w_gate feeds into Sigmoid: Use Xavier/Glorot initialization
+    float stddev_gate = sqrtf(2.0f / (dimension + heads));
+    std::normal_distribution<float> dist_gate(0.0f, stddev_gate);
+    std::vector<float> h_gate(dimension * heads);
+    for(int i=0; i<dimension*heads; i++) h_gate[i] = dist_gate(gen);
+    w_gate = Tensor::upload(h_gate, {dimension, heads});
+
+    // w_proj is linear from 2048: Use He initialization with fan_in = 2048
+    float stddev_proj = sqrtf(2.0f / 2048.0f);
+    std::normal_distribution<float> dist_proj(0.0f, stddev_proj);
+    std::vector<float> h_proj(2048 * dimension);
+    for(int i=0; i<2048*dimension; i++) h_proj[i] = dist_proj(gen);
+    w_proj = Tensor::upload(h_proj, {2048, dimension});
 
     dwQ = Tensor::zeros(dimension, dimension);
     dwK = Tensor::zeros(dimension, dimension);
@@ -202,21 +220,19 @@ std::pair<Tensor, Tensor> PointerAttention::forward_dual(const Tensor& query, co
     Tensor k_2d = schema; k_2d.shape = {N*T_k, D};
     Tensor v_2d = schema; v_2d.shape = {N*T_k, D};
 
-    Tensor Q = Tensor({N*T_q, D}); matrix_multiply_cuda(q_2d.data(), false, wQ.data(), false, Q.data(), N*T_q, D, D);
-    Tensor K = Tensor({N*T_k, D}); matrix_multiply_cuda(k_2d.data(), false, wK.data(), false, K.data(), N*T_k, D, D);
-    Tensor V = Tensor({N*T_k, D}); matrix_multiply_cuda(v_2d.data(), false, wV.data(), false, V.data(), N*T_k, D, D);
+    Tensor Q = matrix_multiply(q_2d, false, wQ, false);
+    Tensor K = matrix_multiply(k_2d, false, wK, false);
+    Tensor V = matrix_multiply(v_2d, false, wV, false);
 
     cachedQ = Q; cachedK = K; cachedV = V;
     
-    Tensor K_total = Tensor({N*T_k, D});
+    Tensor K_total = Tensor::zeros(N*T_k, D);
     if (K_frozen.total_elements() > 0) {
-        Tensor gate = Tensor({N*T_k, heads});
-        matrix_multiply_cuda(k_2d.data(), false, w_gate.data(), false, gate.data(), N*T_k, heads, D);
+        Tensor gate = matrix_multiply(k_2d, false, w_gate, false);
         sigmoid_inplace_cuda(gate.data(), N*T_k*heads);
         cached_gate = gate;
         
-        Tensor kfp = Tensor({T_k, D});
-        matrix_multiply_cuda(K_frozen.data(), false, w_proj.data(), false, kfp.data(), T_k, D, 2048);
+        Tensor kfp = matrix_multiply(K_frozen, false, w_proj, false);
         cached_K_frozen_proj = kfp;
         
         cached_K_learned = K;
@@ -230,9 +246,9 @@ std::pair<Tensor, Tensor> PointerAttention::forward_dual(const Tensor& query, co
     Tensor Kh({N*heads, T_k, head_dim});
     Tensor Vh({N*heads, T_k, head_dim});
     
-    transpose_multihead_cuda(Q.data(), Qh.data(), N, T_q, heads, head_dim);
-    transpose_multihead_cuda(K_total.data(), Kh.data(), N, T_k, heads, head_dim);
-    transpose_multihead_cuda(V.data(), Vh.data(), N, T_k, heads, head_dim);
+    split_heads_cuda(Q.data(), Qh.data(), N, T_q, heads, head_dim);
+    split_heads_cuda(K_total.data(), Kh.data(), N, T_k, heads, head_dim);
+    split_heads_cuda(V.data(), Vh.data(), N, T_k, heads, head_dim);
 
     Tensor scores({N*heads, T_q, T_k});
     batched_matmul_cuda(Qh.data(), false, Kh.data(), true, scores.data(), N*heads, T_q, head_dim, T_k);
@@ -247,7 +263,7 @@ std::pair<Tensor, Tensor> PointerAttention::forward_dual(const Tensor& query, co
     batched_matmul_cuda(attn.data(), false, Vh.data(), false, context.data(), N*heads, T_q, T_k, head_dim);
 
     Tensor merged(N*T_q, D);
-    untranspose_multihead_cuda(context.data(), merged.data(), N, T_q, heads, head_dim);
+    merge_heads_cuda(context.data(), merged.data(), N, T_q, heads, head_dim);
 
     Tensor output = matrix_multiply(merged, false, wO, false);
     if(query.shape.size() == 3) output.shape = {N, T_q, D};
@@ -268,7 +284,7 @@ Tensor PointerAttention::backward(const Tensor& grad, float lr) {
     dwO = matrix_multiply(cached_query.reshape({N*T_q, D}), true, dY_flat, false);
 
     Tensor dContext({N*heads, T_q, head_dim});
-    transpose_multihead_cuda(dMerged.data(), dContext.data(), N, T_q, heads, head_dim);
+    split_heads_cuda(dMerged.data(), dContext.data(), N, T_q, heads, head_dim);
 
     Tensor dAttn({N*heads, T_q, T_k});
     batched_matmul_cuda(dContext.data(), false, cachedV.data(), true, dAttn.data(), N*heads, T_q, head_dim, T_k);
@@ -288,8 +304,8 @@ Tensor PointerAttention::backward(const Tensor& grad, float lr) {
 
     Tensor dQ({N*T_q, D});
     Tensor dK_total({N*T_k, D});
-    untranspose_multihead_cuda(dQh.data(), dQ.data(), N, T_q, heads, head_dim);
-    untranspose_multihead_cuda(dKh.data(), dK_total.data(), N, T_k, heads, head_dim);
+    merge_heads_cuda(dQh.data(), dQ.data(), N, T_q, heads, head_dim);
+    merge_heads_cuda(dKh.data(), dK_total.data(), N, T_k, heads, head_dim);
 
     Tensor dK = Tensor::zeros(N*T_k, D);
     cudaMemset(dw_gate.data(), 0, dw_gate.total_elements() * sizeof(float));
@@ -302,13 +318,22 @@ Tensor PointerAttention::backward(const Tensor& grad, float lr) {
         backward_gated_k_frozen_cuda(dK_total.data(), cached_K_frozen_proj.data(), cached_gate.data(),
                                      dK.data(), dGate.data(), dK_frozen_proj.data(),
                                      N, T_k, heads, head_dim);
-                                     
-        matrix_multiply_cuda(K_frozen.data(), true, dK_frozen_proj.data(), false, dw_proj.data(), 2048, T_k, D);
+        
+        Tensor dw_proj_new = matrix_multiply(K_frozen, true, dK_frozen_proj, false);
+        cudaMemcpy(dw_proj.data(), dw_proj_new.data(), dw_proj.total_elements() * sizeof(float), cudaMemcpyDeviceToDevice);
         
         sigmoid_backward_inplace_cuda(dGate.data(), cached_gate.data(), N*T_k*heads);
         
         Tensor schema_2d = cached_schema; schema_2d.shape = {N*T_k, D};
-        matrix_multiply_cuda(schema_2d.data(), true, dGate.data(), false, dw_gate.data(), D, N*T_k, heads);
+        
+        // dw_gate = schema_emb^T @ dGate
+        // Using matrix_multiply wrappers to get allocated result then memcpy to dw_gate
+        Tensor dw_gate_new = matrix_multiply(schema_2d, true, dGate, false);
+        cudaMemcpy(dw_gate.data(), dw_gate_new.data(), dw_gate.total_elements() * sizeof(float), cudaMemcpyDeviceToDevice);
+        
+        // dSchema_gate = dGate @ w_gate^T
+        Tensor dSchema_gate = matrix_multiply(dGate, false, w_gate, true);
+        cached_gate = dSchema_gate; // Reuse tensor memory for passing to dInput_k
     } else {
         cudaMemcpy(dK.data(), dK_total.data(), dK_total.total_elements() * sizeof(float), cudaMemcpyDeviceToDevice);
     }
@@ -317,7 +342,7 @@ Tensor PointerAttention::backward(const Tensor& grad, float lr) {
     Tensor k_2d = cached_schema.reshape({N*T_k, D});
 
     Tensor dV({N*T_k, D});
-    untranspose_multihead_cuda(dVh.data(), dV.data(), N, T_k, heads, head_dim);
+    merge_heads_cuda(dVh.data(), dV.data(), N, T_k, heads, head_dim);
 
     dwQ = matrix_multiply(q_2d, true, dQ, false);
     dwK = matrix_multiply(k_2d, true, dK, false);
@@ -332,7 +357,6 @@ Tensor PointerAttention::backward(const Tensor& grad, float lr) {
     
     if (K_frozen.total_elements() > 0) {
         // Add dSchema_gate (currently cached_gate) to dInput_k
-        // We will just do a quick CPU add for this small vector
         std::vector<float> h_in = dInput_k.download();
         std::vector<float> h_gate = cached_gate.download();
         for(size_t i=0; i<h_in.size(); ++i) h_in[i] += h_gate[i];

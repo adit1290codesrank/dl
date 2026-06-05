@@ -14,9 +14,9 @@ int main() {
         std::cout << "Loading Base Architecture...\n";
         int vocab_size = 5000;
         int seq_len = 32;
-        int dim = 768;
-        int heads = 12;
-        int depth = 12;
+        int dim = 128;
+        int heads = 4;
+        int depth = 2;
 
         SchemaRAGNet model(vocab_size, seq_len, dim, heads, depth);
         // model.load("weights/schema_rag.bin");
