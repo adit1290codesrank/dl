@@ -242,24 +242,24 @@ std::pair<Tensor, Tensor> PointerAttention::forward_dual(const Tensor& query, co
         cudaMemcpy(K_total.data(), K.data(), K.total_elements() * sizeof(float), cudaMemcpyDeviceToDevice);
     }
 
-    Tensor Qh = Tensor({N*heads, T_q, head_dim});
-    Tensor Kh = Tensor({N*heads, T_k, head_dim});
-    Tensor Vh = Tensor({N*heads, T_k, head_dim});
+    Tensor Qh(std::vector<int>{N*heads, T_q, head_dim});
+    Tensor Kh(std::vector<int>{N*heads, T_k, head_dim});
+    Tensor Vh(std::vector<int>{N*heads, T_k, head_dim});
     
     split_heads_cuda(Q.data(), Qh.data(), N, T_q, heads, head_dim);
     split_heads_cuda(K_total.data(), Kh.data(), N, T_k, heads, head_dim);
     split_heads_cuda(V.data(), Vh.data(), N, T_k, heads, head_dim);
 
-    Tensor scores = Tensor({N*heads, T_q, T_k});
+    Tensor scores(std::vector<int>{N*heads, T_q, T_k});
     batched_matmul_cuda(Qh.data(), false, Kh.data(), true, scores.data(), N*heads, T_q, head_dim, T_k);
     attention_scale_cuda(scores.data(), scale, N*heads*T_q*T_k);
 
-    Tensor attn = Tensor({N*heads, T_q, T_k});
+    Tensor attn(std::vector<int>{N*heads, T_q, T_k});
     cudaMemcpy(attn.data(), scores.data(), N*heads*T_q*T_k * sizeof(float), cudaMemcpyDeviceToDevice);
     full_attention_softmax_cuda(attn.data(), N*heads*T_q, T_k);
     cached_attention = attn;
 
-    Tensor context = Tensor({N*heads, T_q, head_dim});
+    Tensor context(std::vector<int>{N*heads, T_q, head_dim});
     batched_matmul_cuda(attn.data(), false, Vh.data(), false, context.data(), N*heads, T_q, T_k, head_dim);
 
     Tensor merged(N*T_q, D);
@@ -283,27 +283,27 @@ Tensor PointerAttention::backward(const Tensor& grad, float lr) {
     Tensor dMerged = matrix_multiply(dY_flat, false, wO, true);
     dwO = matrix_multiply(cached_query.reshape({N*T_q, D}), true, dY_flat, false);
 
-    Tensor dContext = Tensor({N*heads, T_q, head_dim});
+    Tensor dContext(std::vector<int>{N*heads, T_q, head_dim});
     split_heads_cuda(dMerged.data(), dContext.data(), N, T_q, heads, head_dim);
 
-    Tensor dAttn = Tensor({N*heads, T_q, T_k});
+    Tensor dAttn(std::vector<int>{N*heads, T_q, T_k});
     batched_matmul_cuda(dContext.data(), false, cachedV.data(), true, dAttn.data(), N*heads, T_q, head_dim, T_k);
 
-    Tensor dVh = Tensor({N*heads, T_k, head_dim});
+    Tensor dVh(std::vector<int>{N*heads, T_k, head_dim});
     batched_matmul_cuda(cached_attention.data(), true, dContext.data(), false, dVh.data(), N*heads, T_k, T_q, head_dim);
 
-    Tensor dScores = Tensor({N*heads, T_q, T_k});
+    Tensor dScores(std::vector<int>{N*heads, T_q, T_k});
     full_attention_softmax_backward_cuda(dAttn.data(), cached_attention.data(), dScores.data(), N*heads*T_q, T_k);
 
     attention_scale_cuda(dScores.data(), scale, N*heads*T_q*T_k);
 
-    Tensor dQh = Tensor({N*heads, T_q, head_dim});
-    Tensor dKh = Tensor({N*heads, T_k, head_dim});
+    Tensor dQh(std::vector<int>{N*heads, T_q, head_dim});
+    Tensor dKh(std::vector<int>{N*heads, T_k, head_dim});
     batched_matmul_cuda(dScores.data(), false, cachedK.data(), false, dQh.data(), N*heads, T_q, T_k, head_dim);
     batched_matmul_cuda(dScores.data(), true, cachedQ.data(), false, dKh.data(), N*heads, T_k, T_q, head_dim);
 
-    Tensor dQ = Tensor({N*T_q, D});
-    Tensor dK_total = Tensor({N*T_k, D});
+    Tensor dQ(N*T_q, D);
+    Tensor dK_total(N*T_k, D);
     merge_heads_cuda(dQh.data(), dQ.data(), N, T_q, heads, head_dim);
     merge_heads_cuda(dKh.data(), dK_total.data(), N, T_k, heads, head_dim);
 
@@ -341,7 +341,7 @@ Tensor PointerAttention::backward(const Tensor& grad, float lr) {
     Tensor q_2d = cached_query.reshape({N*T_q, D});
     Tensor k_2d = cached_schema.reshape({N*T_k, D});
 
-    Tensor dV = Tensor({N*T_k, D});
+    Tensor dV(N*T_k, D);
     merge_heads_cuda(dVh.data(), dV.data(), N, T_k, heads, head_dim);
 
     dwQ = matrix_multiply(q_2d, true, dQ, false);
