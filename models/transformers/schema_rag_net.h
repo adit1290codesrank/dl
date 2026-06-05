@@ -59,18 +59,18 @@ class SchemaRAGNet
 
         void save(const std::string& path)
         {
-            std::ofstream os(path, std::ios::binary);
-            query_encoder->save(os);
-            schema_encoder->save(os);
+            query_encoder->save(path + "_query.bin");
+            schema_encoder->save(path + "_schema.bin");
+            std::ofstream os(path + "_pointer.bin", std::ios::binary);
             pointer_layer->save(os);
             os.close();
         }
 
         void load(const std::string& path)
         {
-            std::ifstream is(path, std::ios::binary);
-            query_encoder->load(is);
-            schema_encoder->load(is);
+            query_encoder->load(path + "_query.bin");
+            schema_encoder->load(path + "_schema.bin");
+            std::ifstream is(path + "_pointer.bin", std::ios::binary);
             pointer_layer->load(is);
             is.close();
         }
