@@ -5,7 +5,9 @@
 #include <stdexcept>
 
 void load_breakwalls_dataset(const std::string& path, int& n_train, int& n_val, int& seq_len, int& vocab_size, int& schema_size,
-                             std::vector<float>& X_train, std::vector<float>& Schema_train, std::vector<float>& Y_train, std::vector<float>& K_frozen) 
+                             std::vector<float>& X_train, std::vector<float>& Schema_train, std::vector<float>& Y_train,
+                             std::vector<float>& X_val, std::vector<float>& Schema_val, std::vector<float>& Y_val,
+                             std::vector<float>& K_frozen) 
 {
     std::ifstream file(path, std::ios::binary);
     if(!file.is_open()) throw std::runtime_error("Could not open " + path);
@@ -27,6 +29,14 @@ void load_breakwalls_dataset(const std::string& path, int& n_train, int& n_val, 
     file.read(reinterpret_cast<char*>(Schema_train.data()), Schema_train.size() * sizeof(float));
     file.read(reinterpret_cast<char*>(Y_train.data()), Y_train.size() * sizeof(float));
     
+    X_val.resize(n_val * seq_len);
+    Schema_val.resize(n_val * schema_size);
+    Y_val.resize(n_val * seq_len);
+
+    file.read(reinterpret_cast<char*>(X_val.data()), X_val.size() * sizeof(float));
+    file.read(reinterpret_cast<char*>(Schema_val.data()), Schema_val.size() * sizeof(float));
+    file.read(reinterpret_cast<char*>(Y_val.data()), Y_val.size() * sizeof(float));
+    
     file.close();
 }
 
@@ -34,10 +44,11 @@ int main()
 {
     try {
         int n_train, n_val, seq_len, vocab_size, schema_size;
-        std::vector<float> X_train, Schema_train, Y_train, K_frozen;
+        std::vector<float> X_train, Schema_train, Y_train, X_val, Schema_val, Y_val, K_frozen;
         
         std::cout << "Loading BreakWalls Dataset..." << std::endl;
-        load_breakwalls_dataset("data/breakwalls.bin", n_train, n_val, seq_len, vocab_size, schema_size, X_train, Schema_train, Y_train, K_frozen);
+        load_breakwalls_dataset("data/breakwalls.bin", n_train, n_val, seq_len, vocab_size, schema_size, 
+                                X_train, Schema_train, Y_train, X_val, Schema_val, Y_val, K_frozen);
 
         std::cout << "\n========================================" << std::endl;
         std::cout << "Schema-RAG Pointer Network Training" << std::endl;
@@ -57,7 +68,7 @@ int main()
         model.set_k_frozen(Tensor::upload(K_frozen, {schema_size, 2048}));
         
         // Train for 100 epochs with Cosine Annealing to smoothly converge
-        model.fit(X_train, Schema_train, Y_train, n_train, seq_len, schema_size, vocab_size, 100, 8, 2e-4f);
+        model.fit(X_train, Schema_train, Y_train, X_val, Schema_val, Y_val, n_train, n_val, seq_len, schema_size, vocab_size, 100, 8, 2e-4f);
 
         std::cout << "Saving weights to weights/schema_rag.bin" << std::endl;
         model.save("weights/schema_rag.bin");

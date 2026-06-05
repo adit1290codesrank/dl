@@ -128,7 +128,8 @@ class SchemaRAGNet
         }
 
         void fit(const std::vector<float>& X, const std::vector<float>& Schema, const std::vector<float>& Y,
-                 int n, int seq_len, int schema_size, int vocab_size, int epochs, int bs, float lr)
+                 const std::vector<float>& X_val, const std::vector<float>& Schema_val, const std::vector<float>& Y_val,
+                 int n, int n_val, int seq_len, int schema_size, int vocab_size, int epochs, int bs, float lr)
         {
             set_mode(true);
             int nb = n / bs;
@@ -142,7 +143,7 @@ class SchemaRAGNet
             std::mt19937 rng(42);
 
             std::ofstream log_file("loss_log.csv");
-            log_file << "epoch,loss,lr\n";
+            log_file << "epoch,loss,val_acc,lr\n";
 
             std::cout << "Starting SchemaRAG Training Loop..." << std::endl;
             auto t0 = std::chrono::high_resolution_clock::now();
@@ -206,8 +207,59 @@ class SchemaRAGNet
                 }
 
                 float avg = tot_loss / nb;
-                std::cout << "\rEpoch " << e << "/" << epochs << "  Loss: " << avg << "  LR: " << current_lr << "                            " << std::endl;
-                log_file << e << "," << avg << "," << current_lr << "\n";
+
+                // Evaluate on validation set
+                set_mode(false);
+                int nb_val = n_val / bs;
+                if (nb_val == 0) nb_val = 1;
+                
+                int correct_tokens = 0;
+                int total_valid_tokens = 0;
+
+                for (int b = 0; b < nb_val; ++b) {
+                    int actual_bs = std::min(bs, n_val - b * bs);
+                    std::vector<float> bX(actual_bs * seq_len);
+                    std::vector<float> bS(actual_bs * schema_size);
+
+                    for (int i = 0; i < actual_bs; ++i) {
+                        int id = b * bs + i;
+                        std::copy(X_val.begin() + id * seq_len, X_val.begin() + (id + 1) * seq_len, bX.begin() + i * seq_len);
+                        std::copy(Schema_val.begin() + id * schema_size, Schema_val.begin() + (id + 1) * schema_size, bS.begin() + i * schema_size);
+                    }
+
+                    Tensor dX = Tensor::upload(bX, {actual_bs, seq_len});
+                    Tensor dS = Tensor::upload(bS, {actual_bs, schema_size});
+                    
+                    Tensor pred = forward(dX, dS);
+                    std::vector<float> pred_cpu(pred.total_elements());
+                    cudaMemcpy(pred_cpu.data(), pred.data(), pred_cpu.size() * sizeof(float), cudaMemcpyDeviceToHost);
+
+                    for (int i = 0; i < actual_bs; ++i) {
+                        int id = b * bs + i;
+                        for (int t = 0; t < seq_len; ++t) {
+                            int target_token = (int)Y_val[id * seq_len + t];
+                            if (target_token == 0) continue; // Skip padding
+
+                            float max_val = -1e9;
+                            int best_token = -1;
+                            for (int v = 0; v < vocab_size; ++v) {
+                                float val = pred_cpu[(i * seq_len + t) * vocab_size + v];
+                                if (val > max_val) {
+                                    max_val = val;
+                                    best_token = v;
+                                }
+                            }
+                            if (best_token == target_token) correct_tokens++;
+                            total_valid_tokens++;
+                        }
+                    }
+                }
+                
+                float val_acc = total_valid_tokens > 0 ? (float)correct_tokens / total_valid_tokens * 100.0f : 0.0f;
+                set_mode(true);
+
+                std::cout << "\rEpoch " << e << "/" << epochs << "  Loss: " << avg << "  Val Token Acc: " << val_acc << "%  LR: " << current_lr << "                            " << std::endl;
+                log_file << e << "," << avg << "," << val_acc << "," << current_lr << "\n";
                 log_file.flush(); // Flush buffer to disk immediately so you can monitor it live!
             }
 
