@@ -85,7 +85,9 @@ class SchemaRAGNet
             std::ofstream os(path + "_pointer.bin", std::ios::binary);
             pointer_layer->save(os);
             os.close();
-            vocab_proj->save(path + "_vocab.bin");
+            std::ofstream os_vocab(path + "_vocab.bin", std::ios::binary);
+            vocab_proj->save(os_vocab);
+            os_vocab.close();
         }
 
         void load(const std::string& path)
@@ -95,7 +97,9 @@ class SchemaRAGNet
             std::ifstream is(path + "_pointer.bin", std::ios::binary);
             pointer_layer->load(is);
             is.close();
-            vocab_proj->load(path + "_vocab.bin");
+            std::ifstream is_vocab(path + "_vocab.bin", std::ios::binary);
+            vocab_proj->load(is_vocab);
+            is_vocab.close();
         }
 
         void fit(const std::vector<float>& X, const std::vector<float>& Schema, const std::vector<float>& Y, 
