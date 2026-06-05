@@ -137,13 +137,21 @@ class SchemaRAGNet
             std::iota(idx.begin(), idx.end(), 0);
             std::mt19937 rng(42);
 
+            std::ofstream log_file("loss_log.csv");
+            log_file << "epoch,loss,lr\n";
+
             std::cout << "Starting SchemaRAG Training Loop..." << std::endl;
             auto t0 = std::chrono::high_resolution_clock::now();
+
+            float lr_min = lr * 0.01f;
 
             for (int e = 1; e <= epochs; ++e)
             {
                 std::shuffle(idx.begin(), idx.end(), rng);
                 float tot_loss = 0.0f;
+                
+                // Cosine Annealing LR Schedule
+                float current_lr = lr_min + 0.5f * (lr - lr_min) * (1.0f + std::cos(3.1415926535f * (e - 1) / epochs));
 
                 for (int b = 0; b < nb; ++b)
                 {
@@ -178,7 +186,7 @@ class SchemaRAGNet
                     
                     Loss::compute_gradient(pred, dY, grad, LossType::CROSS_ENTROPY);
                     grad.shape = {current_bs, seq_len, vocab_size};
-                    backward(grad, lr);
+                    backward(grad, current_lr);
                     tot_loss += Loss::compute_loss(pred, dY, loss_val, LossType::CROSS_ENTROPY);
                     
                     pred.shape = {current_bs, seq_len, vocab_size}; // restore shape
@@ -196,9 +204,11 @@ class SchemaRAGNet
                 }
 
                 float avg = tot_loss / nb;
-                std::cout << "\rEpoch " << e << "/" << epochs << "  Loss: " << avg << "  LR: " << lr << "                            " << std::endl;
+                std::cout << "\rEpoch " << e << "/" << epochs << "  Loss: " << avg << "  LR: " << current_lr << "                            " << std::endl;
+                log_file << e << "," << avg << "," << current_lr << "\n";
             }
 
+            log_file.close();
             float secs = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - t0).count();
             std::cout << "Done in " << secs << "s" << std::endl;
         }
