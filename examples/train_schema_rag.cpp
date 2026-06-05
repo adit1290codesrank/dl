@@ -42,17 +42,17 @@ int main()
         std::cout << "Seq Len: " << seq_len << " Vocab Size: " << vocab_size << " Schema Size: " << schema_size << std::endl;
         std::cout << "Train examples: " << n_train << std::endl;
         
-        int dim = 256; // Reduced dimension for fast local testing
+        int dim = 512; // Expanded for 5000+ dataset
         int heads = 8;
-        int depth = 4; // Reduced depth for fast local testing
+        int depth = 6; // Expanded for 5000+ dataset
 
         std::cout << "Initializing Dual-Encoder Architecture..." << std::endl;
         SchemaRAGNet model(vocab_size, seq_len, dim, heads, depth);
 
         std::cout << "Starting Actual Backpropagation Loop..." << std::endl;
         
-        // Train for 200 epochs to let the Transformer actually learn the mappings
-        model.fit(X_train, Schema_train, Y_train, n_train, seq_len, schema_size, vocab_size, 200, 4, 1e-3f);
+        // Train for 1000 epochs with Cosine Annealing to fully learn the massive dataset
+        model.fit(X_train, Schema_train, Y_train, n_train, seq_len, schema_size, vocab_size, 1000, 8, 1e-3f);
 
         std::cout << "Saving weights to weights/schema_rag.bin" << std::endl;
         model.save("weights/schema_rag.bin");
