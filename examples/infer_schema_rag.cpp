@@ -7,7 +7,7 @@
 #include <map>
 #include <sstream>
 
-void load_metadata_and_schema(const std::string& path, int& seq_len, int& vocab_size, int& schema_size, std::vector<float>& Schema) 
+void load_metadata_and_schema(const std::string& path, int& seq_len, int& vocab_size, int& schema_size, std::vector<float>& Schema, std::vector<float>& K_frozen) 
 {
     std::ifstream file(path, std::ios::binary);
     if(!file.is_open()) throw std::runtime_error("Could not open " + path);
@@ -19,7 +19,9 @@ void load_metadata_and_schema(const std::string& path, int& seq_len, int& vocab_
     file.read(reinterpret_cast<char*>(&vocab_size), sizeof(int));
     file.read(reinterpret_cast<char*>(&schema_size), sizeof(int));
     
-    // We just need one copy of the Schema array for inference
+    K_frozen.resize(schema_size * 2048);
+    file.read(reinterpret_cast<char*>(K_frozen.data()), K_frozen.size() * sizeof(float));
+    
     std::vector<float> X_train(n_train * seq_len);
     file.read(reinterpret_cast<char*>(X_train.data()), X_train.size() * sizeof(float));
     
@@ -31,14 +33,41 @@ void load_metadata_and_schema(const std::string& path, int& seq_len, int& vocab_
     file.close();
 }
 
+void load_txt_lines(const std::string& path, std::vector<std::string>& lines) {
+    std::ifstream file(path);
+    if(file.is_open()) {
+        std::string line;
+        while(std::getline(file, line)) lines.push_back(line);
+    }
+}
+
+void load_jargon(const std::string& path, std::map<std::string, std::string>& dict) {
+    std::ifstream file(path);
+    if(file.is_open()) {
+        std::string line;
+        while(std::getline(file, line)) {
+            size_t pos = line.find('|');
+            if(pos != std::string::npos) {
+                dict[line.substr(0, pos)] = line.substr(pos + 1);
+            }
+        }
+    }
+}
+
 int main()
 {
     try {
         int seq_len, vocab_size, schema_size;
-        std::vector<float> Schema;
+        std::vector<float> Schema, K_frozen;
         
         std::cout << "Loading Database Schema & Metadata..." << std::endl;
-        load_metadata_and_schema("data/breakwalls.bin", seq_len, vocab_size, schema_size, Schema);
+        load_metadata_and_schema("data/breakwalls.bin", seq_len, vocab_size, schema_size, Schema, K_frozen);
+
+        std::cout << "Loading RAG Context..." << std::endl;
+        std::vector<std::string> schema_lower;
+        load_txt_lines("data/schema_strings.txt", schema_lower);
+        std::map<std::string, std::string> jargon_dict;
+        load_jargon("data/jargon_dict.txt", jargon_dict);
 
         std::cout << "Loading BPE Tokenizer..." << std::endl;
         BPETokenizer tokenizer("data/bpe_vocab.txt", "data/bpe_merges.txt");
@@ -49,6 +78,8 @@ int main()
 
         std::cout << "Initializing Architecture & Loading Weights..." << std::endl;
         SchemaRAGNet model(vocab_size, seq_len, dim, heads, depth);
+        
+        model.set_k_frozen(Tensor::upload(K_frozen, {schema_size, 2048}));
         
         // Disable dropout and load weights
         model.set_mode(false);
@@ -63,6 +94,15 @@ int main()
             std::cout << "\nUSER > ";
             std::getline(std::cin, query);
             if(query.empty() || query == "exit") break;
+            
+            // Jargon Resolution (Stage 1)
+            for(const auto& pair : jargon_dict) {
+                size_t pos = 0;
+                while((pos = query.find(pair.first, pos)) != std::string::npos) {
+                    query.replace(pos, pair.first.length(), pair.second);
+                    pos += pair.second.length();
+                }
+            }
             
             std::vector<int> base_ids = tokenizer.encode(query, seq_len);
             

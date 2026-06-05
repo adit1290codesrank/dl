@@ -15,17 +15,27 @@ class PointerAttention : public Layer
 
         Tensor wQ, wK, wV, wO;
         Tensor dwQ, dwK, dwV, dwO;
+        
+        Tensor w_gate, dw_gate; // Shape [dimension, heads]
+        Tensor w_proj, dw_proj; // Shape [2048, dimension]
 
         int t;
         Tensor mwq, vwq;
         Tensor mwk, vwk;
         Tensor mwv, vwv;
         Tensor mwo, vwo;
+        Tensor mw_gate, vw_gate;
+        Tensor mw_proj, vw_proj;
 
         Tensor cached_query;
         Tensor cached_schema;
+        Tensor cached_gate; // [N, T_k, heads]
+        Tensor cached_K_learned; // [N, T_k, dimension]
+        Tensor cached_K_frozen_proj; // [T_k, dimension]
         Tensor cachedQ, cachedK, cachedV;
         Tensor cached_attention;
+        
+        Tensor K_frozen; // Global frozen vectors [schema_size, 2048]
 
     public:
         // dimension is the embedding dim.
@@ -35,7 +45,9 @@ class PointerAttention : public Layer
         Tensor forward(const Tensor& input) override;
         Tensor backward(const Tensor& grad, float lr) override;
 
-        // Dual forward taking Query (English) and Schema (Macros/Columns)
+        void set_k_frozen(const Tensor& kf) { K_frozen = kf; }
+
+        // Dual forward taking Query and Schema
         // returns {context, attention_weights}
         std::pair<Tensor, Tensor> forward_dual(const Tensor& query, const Tensor& schema);
         

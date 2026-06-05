@@ -38,6 +38,13 @@ def generate_dataset():
     print("Loading schema...")
     schema_elements = load_schema(tables_path)
     
+    print("Loading Jargon Dictionary...")
+    jargon_dict_path = os.path.join(base_dir, "..", "jargon_dict.json")
+    jargon_dict = {}
+    if os.path.exists(jargon_dict_path):
+        with open(jargon_dict_path, 'r', encoding='utf-8') as f:
+            jargon_dict = json.load(f)
+            
     print("Loading synthetic dataset...")
     with open(samples_path, 'r', encoding='utf-8') as f:
         samples = json.load(f)
@@ -46,6 +53,8 @@ def generate_dataset():
     tokenized_samples = []
     for s in samples:
         inp = s["input"]
+        for k, v in jargon_dict.items():
+            inp = inp.replace(k, v) # deterministic stage 1 resolution
         out = s["output"]
         inp_ids = tokenizer.encode(inp).ids
         out_ids = tokenizer.encode(out).ids
@@ -83,12 +92,8 @@ def generate_dataset():
         schema_ids = [toks[0] if toks else unk_id for toks in schema_tokens_list]
         
         for i, (inp_ids, out_ids) in enumerate(dataset):
-            # Formulate the sequence: [ENG] + [SEP] + [SQL]
             combined = inp_ids + [sep_id] + out_ids
-            
-            # X is the causal prefix
             x_seq = combined[:-1]
-            # Y is the prediction target
             y_seq = combined[1:]
             
             x_pad = pad_sequence(x_seq, seq_len)
@@ -105,6 +110,27 @@ def generate_dataset():
         Schema.tofile(f)
         Y.tofile(f)
 
+    import hashlib
+    def get_hash_vec(text, dim=2048):
+        vec = [0.0] * dim
+        text = text.lower()
+        for i in range(len(text)-2):
+            tg = text[i:i+3]
+            idx = int(hashlib.md5(tg.encode()).hexdigest(), 16) % dim
+            vec[idx] = 1.0
+        for word in text.split():
+            if len(word) > 2:
+                idx = int(hashlib.md5(word.encode()).hexdigest(), 16) % dim
+                vec[idx] = 1.0
+        return vec
+        
+    print("Generating Frozen Lexical Keys...")
+    K_frozen = array.array('f', [0.0] * (schema_size * 2048))
+    for i, desc in enumerate(schema_elements):
+        vec = get_hash_vec(desc)
+        for j in range(2048):
+            K_frozen[i * 2048 + j] = vec[j]
+
     out_bin = os.path.join(out_dir, "breakwalls.bin")
     with open(out_bin, "wb") as f:
         f.write(struct.pack("i", n_train))
@@ -113,8 +139,19 @@ def generate_dataset():
         f.write(struct.pack("i", vocab_size))
         f.write(struct.pack("i", schema_size))
         
+        # Write global K_frozen
+        K_frozen.tofile(f)
+        
         write_set(f, train_samples, n_train)
         write_set(f, val_samples, n_val)
+        
+    with open(os.path.join(out_dir, "schema_strings.txt"), "w", encoding="utf-8") as f:
+        for desc in schema_elements:
+            f.write(desc.lower().replace('\n', ' ') + '\n')
+            
+    with open(os.path.join(out_dir, "jargon_dict.txt"), "w", encoding="utf-8") as f:
+        for k, v in jargon_dict.items():
+            f.write(f"{k}|{v}\n")
         
     print(f"Successfully generated {out_bin} from synthetic dataset!")
     print(f"Train samples: {n_train}, Val samples: {n_val}, Seq Len: {seq_len}, Schema Size: {schema_size}")

@@ -5,7 +5,7 @@
 #include <stdexcept>
 
 void load_breakwalls_dataset(const std::string& path, int& n_train, int& n_val, int& seq_len, int& vocab_size, int& schema_size,
-                             std::vector<float>& X_train, std::vector<float>& Schema_train, std::vector<float>& Y_train) 
+                             std::vector<float>& X_train, std::vector<float>& Schema_train, std::vector<float>& Y_train, std::vector<float>& K_frozen) 
 {
     std::ifstream file(path, std::ios::binary);
     if(!file.is_open()) throw std::runtime_error("Could not open " + path);
@@ -15,6 +15,9 @@ void load_breakwalls_dataset(const std::string& path, int& n_train, int& n_val, 
     file.read(reinterpret_cast<char*>(&seq_len), sizeof(int));
     file.read(reinterpret_cast<char*>(&vocab_size), sizeof(int));
     file.read(reinterpret_cast<char*>(&schema_size), sizeof(int));
+    
+    K_frozen.resize(schema_size * 2048);
+    file.read(reinterpret_cast<char*>(K_frozen.data()), K_frozen.size() * sizeof(float));
     
     X_train.resize(n_train * seq_len);
     Schema_train.resize(n_train * schema_size);
@@ -31,10 +34,10 @@ int main()
 {
     try {
         int n_train, n_val, seq_len, vocab_size, schema_size;
-        std::vector<float> X_train, Schema_train, Y_train;
+        std::vector<float> X_train, Schema_train, Y_train, K_frozen;
         
         std::cout << "Loading BreakWalls Dataset..." << std::endl;
-        load_breakwalls_dataset("data/breakwalls.bin", n_train, n_val, seq_len, vocab_size, schema_size, X_train, Schema_train, Y_train);
+        load_breakwalls_dataset("data/breakwalls.bin", n_train, n_val, seq_len, vocab_size, schema_size, X_train, Schema_train, Y_train, K_frozen);
 
         std::cout << "\n========================================" << std::endl;
         std::cout << "Schema-RAG Pointer Network Training" << std::endl;
@@ -50,6 +53,8 @@ int main()
         SchemaRAGNet model(vocab_size, seq_len, dim, heads, depth);
 
         std::cout << "Starting Actual Backpropagation Loop..." << std::endl;
+        
+        model.set_k_frozen(Tensor::upload(K_frozen, {schema_size, 2048}));
         
         // Train for 200 epochs with Cosine Annealing to fully learn the massive dataset
         model.fit(X_train, Schema_train, Y_train, n_train, seq_len, schema_size, vocab_size, 200, 8, 2e-4f);

@@ -1,0 +1,7 @@
+{
+    "MPY": "SMU IN ('Protective Coating', 'Marine') AND NatureOfTransaction = 'Sales'",
+    "ASM": "SalesPersonName",
+    "RSM": "RSM",
+    "SSM": "SSM",
+    "NSM": "NSMName"
+}

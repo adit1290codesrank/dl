@@ -47,13 +47,17 @@ class SchemaRAGNet
             delete sm;
         }
 
-        Tensor forward(const Tensor& query_tokens, const Tensor& schema_tokens)
-        {
+        void set_k_frozen(const Tensor& kf) {
+            pointer_layer->set_k_frozen(kf);
+        }
+
+        Tensor forward(const Tensor& query_tokens, const Tensor& schema_tokens) {
             Tensor Q_emb = query_encoder->forward(query_tokens);
             Tensor K_emb = schema_encoder->forward(schema_tokens);
-
-            auto result = pointer_layer->forward_dual(Q_emb, K_emb);
-            Tensor context = result.first;
+            
+            auto out = pointer_layer->forward_dual(Q_emb, K_emb);
+            Tensor context = out.first;
+            // pointer_weights = out.second; // if needed later
             
             // CRITICAL FIX: Add residual connection so gradients can flow directly 
             // into the Query Encoder, bypassing the frozen Schema vectors!
@@ -123,7 +127,7 @@ class SchemaRAGNet
             is_vocab.close();
         }
 
-        void fit(const std::vector<float>& X, const std::vector<float>& Schema, const std::vector<float>& Y, 
+        void fit(const std::vector<float>& X, const std::vector<float>& Schema, const std::vector<float>& Y,
                  int n, int seq_len, int schema_size, int vocab_size, int epochs, int bs, float lr)
         {
             set_mode(true);
@@ -131,7 +135,7 @@ class SchemaRAGNet
             if (nb == 0) nb = 1;
 
             Tensor loss_val = Tensor::zeros(1, 1);
-            Tensor grad = Tensor::zeros(bs * seq_len, vocab_size);
+            Tensor grad = Tensor::zeros({bs * seq_len, vocab_size});
 
             std::vector<int> idx(n);
             std::iota(idx.begin(), idx.end(), 0);
@@ -150,23 +154,21 @@ class SchemaRAGNet
                 std::shuffle(idx.begin(), idx.end(), rng);
                 float tot_loss = 0.0f;
                 
-                // Cosine Annealing LR Schedule
                 float current_lr = lr_min + 0.5f * (lr - lr_min) * (1.0f + std::cos(3.1415926535f * (e - 1) / epochs));
 
                 for (int b = 0; b < nb; ++b)
                 {
-                    int current_bs = std::min(bs, n - b * bs);
-                    std::vector<float> bX(current_bs * seq_len);
-                    std::vector<float> bY(current_bs * seq_len * vocab_size, 0.0f); // One-hot Y
-                    std::vector<float> bS(current_bs * schema_size);
+                    int actual_bs = std::min(bs, n - b * bs);
+                    std::vector<float> bX(actual_bs * seq_len);
+                    std::vector<float> bY(actual_bs * seq_len * vocab_size, 0.0f);
+                    std::vector<float> bS(actual_bs * schema_size);
 
-                    for (int i = 0; i < current_bs; ++i)
+                    for (int i = 0; i < actual_bs; ++i)
                     {
                         int id = idx[b * bs + i];
                         std::copy(X.begin() + id * seq_len, X.begin() + (id + 1) * seq_len, bX.begin() + i * seq_len);
                         std::copy(Schema.begin() + id * schema_size, Schema.begin() + (id + 1) * schema_size, bS.begin() + i * schema_size);
                         
-                        // Create one-hot labels for Sequence output
                         for(int t = 0; t < seq_len; ++t) {
                             int token_id = (int)Y[id * seq_len + t];
                             if(token_id >= 0 && token_id < vocab_size) {
@@ -175,21 +177,21 @@ class SchemaRAGNet
                         }
                     }
 
-                    Tensor dX = Tensor::upload(bX, {current_bs, seq_len});
-                    Tensor dS = Tensor::upload(bS, {current_bs, schema_size});
-                    Tensor dY = Tensor::upload(bY, {current_bs * seq_len, vocab_size});
+                    Tensor dX = Tensor::upload(bX, {actual_bs, seq_len});
+                    Tensor dS = Tensor::upload(bS, {actual_bs, schema_size});
+                    Tensor dY = Tensor::upload(bY, {actual_bs * seq_len, vocab_size});
 
                     Tensor pred = forward(dX, dS);
                     
                     // Reshape to flat 2D for loss calculation
-                    pred.shape = {current_bs * seq_len, vocab_size};
+                    pred.shape = {actual_bs * seq_len, vocab_size};
                     
                     Loss::compute_gradient(pred, dY, grad, LossType::CROSS_ENTROPY);
-                    grad.shape = {current_bs, seq_len, vocab_size};
+                    grad.shape = {actual_bs, seq_len, vocab_size};
                     backward(grad, current_lr);
                     tot_loss += Loss::compute_loss(pred, dY, loss_val, LossType::CROSS_ENTROPY);
                     
-                    pred.shape = {current_bs, seq_len, vocab_size}; // restore shape
+                    pred.shape = {actual_bs, seq_len, vocab_size}; // restore shape
 
                     if (b % 5 == 0 || b == nb - 1) {
                         int pct = (b * 100) / nb;
