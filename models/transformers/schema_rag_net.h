@@ -206,6 +206,7 @@ class SchemaRAGNet
                 float avg = tot_loss / nb;
                 std::cout << "\rEpoch " << e << "/" << epochs << "  Loss: " << avg << "  LR: " << current_lr << "                            " << std::endl;
                 log_file << e << "," << avg << "," << current_lr << "\n";
+                log_file.flush(); // Flush buffer to disk immediately so you can monitor it live!
             }
 
             log_file.close();
