@@ -21,7 +21,8 @@ CPP_SRCS := $(wildcard $(SRC_DIR)/core/*.cpp) \
             $(wildcard $(SRC_DIR)/layers/*.cpp) \
             $(MAIN_SRC)
 
-CU_SRCS  := $(wildcard $(SRC_DIR)/core/*.cu)
+CU_SRCS  := $(wildcard $(SRC_DIR)/core/*.cu) \
+            $(wildcard $(SRC_DIR)/layers/*.cu)
 
 OBJS     := $(CPP_SRCS:%.cpp=$(OBJ_DIR)/%.o) \
             $(CU_SRCS:%.cu=$(OBJ_DIR)/%.o)

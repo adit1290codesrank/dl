@@ -1,0 +1,3038 @@
+[
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "Seq",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "SONum",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Sales Order Number, Sales Order Id"
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "LineItem",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Sales Order Line, Sales Order Line Item"
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "SONumLineItem",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "TONumWHToProd",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Transfer Order Number Warehouse To Production"
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "SAPBaseCode",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "SAP Base SKU"
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "MFGBaseCode",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "MFGBaseCodeQty",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "OrderRecdDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Order Received Date"
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "OrderRecdTime",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Order Received Time"
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "TintingDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "TintStatus",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "BaseIssuedDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "BaseIssuedTime",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "FGSONumLineItem",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "SAPFGCode",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "FGColourCode",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "FGQty",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "TONumProdToWH",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "TintLoc",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "Bin",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "FGRecdDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "FG Received date, Finished Goods Received date"
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "FGRecdTime",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "FG Received time, Finished Goods Received time"
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "TOConfirmDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Transfer Order Confirmed Date"
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "TOConfirmTime",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Transfer Order Confirmed Time"
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "NewSONum",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "New Sales Order Number"
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "PickListId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "OBD Number"
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "PickListDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "OBD Date"
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "InvoiceNo",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "InvoiceDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "DispatchDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "BwModifiedBy",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "CreatedOn",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "TORecd",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "TO Received, Transfer Order Received"
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "Tinting",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "BaseIssued",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "FGRecd",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "FG Received, Finished Goods Received"
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "TOConfirm",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "Cancelled",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "WHRemarks",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Warehouse Remarks"
+  },
+  {
+    "TABLE_NAME": "AN_CHROMASCAN_TRACKER",
+    "COLUMN_NAME": "CustName",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Customer Name"
+  },
+  {
+    "TABLE_NAME": "AN_CUSTOMER_VS_ASM_RSM",
+    "COLUMN_NAME": "CustomerCode",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CUSTOMER_VS_ASM_RSM",
+    "COLUMN_NAME": "CustomerName",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CUSTOMER_VS_ASM_RSM",
+    "COLUMN_NAME": "Region",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CUSTOMER_VS_ASM_RSM",
+    "COLUMN_NAME": "SalesPersonName",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "ASM, Aear Sales Manager"
+  },
+  {
+    "TABLE_NAME": "AN_CUSTOMER_VS_ASM_RSM",
+    "COLUMN_NAME": "SalesPersonEmailId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CUSTOMER_VS_ASM_RSM",
+    "COLUMN_NAME": "RSM",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Regional Sales Manager"
+  },
+  {
+    "TABLE_NAME": "AN_CUSTOMER_VS_ASM_RSM",
+    "COLUMN_NAME": "RSMEmailId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CUSTOMER_VS_ASM_RSM",
+    "COLUMN_NAME": "SMU",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Business Unit"
+  },
+  {
+    "TABLE_NAME": "AN_CUSTOMER_VS_ASM_RSM",
+    "COLUMN_NAME": "OrderDesk",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CUSTOMER_VS_ASM_RSM",
+    "COLUMN_NAME": "Commercial",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CUSTOMER_VS_ASM_RSM",
+    "COLUMN_NAME": "IsActive",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CUSTOMER_VS_ASM_RSM",
+    "COLUMN_NAME": "MfgProCusomerCode",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_CUSTOMER_VS_ASM_RSM",
+    "COLUMN_NAME": "SSM",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Segment Sales Manager"
+  },
+  {
+    "TABLE_NAME": "AN_CUSTOMER_VS_ASM_RSM",
+    "COLUMN_NAME": "NSMName",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "National Sales Manager"
+  },
+  {
+    "TABLE_NAME": "AN_CUSTOMER_VS_ASM_RSM",
+    "COLUMN_NAME": "NSMEmailId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_DAMAGE_SKU_DETAILS",
+    "COLUMN_NAME": "BWDamageID",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Transit Damage Id"
+  },
+  {
+    "TABLE_NAME": "AN_DAMAGE_SKU_DETAILS",
+    "COLUMN_NAME": "TransporterLRNo",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_DAMAGE_SKU_DETAILS",
+    "COLUMN_NAME": "Transporter",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_DAMAGE_SKU_DETAILS",
+    "COLUMN_NAME": "ItemId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_DAMAGE_SKU_DETAILS",
+    "COLUMN_NAME": "Qty",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_DAMAGE_SKU_DETAILS",
+    "COLUMN_NAME": "Rate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_DAMAGE_SKU_DETAILS",
+    "COLUMN_NAME": "InvoiceAmount",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_DAMAGE_SKU_DETAILS",
+    "COLUMN_NAME": "InvAmountIncTax",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_DAMAGE_SKU_DETAILS",
+    "COLUMN_NAME": "Seq",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_DAMAGE_SKU_DETAILS",
+    "COLUMN_NAME": "InvoiceNo",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_DAMAGE_SKU_DETAILS",
+    "COLUMN_NAME": "UoM",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_DAMAGE_SKU_DETAILS",
+    "COLUMN_NAME": "LeakageQty",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_DAMAGE_SKU_DETAILS",
+    "COLUMN_NAME": "ShortageQty",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_DAMAGE_SKU_DETAILS",
+    "COLUMN_NAME": "DamageType",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "SONum",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Sales Order Number, Sales Order Id"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "SMU",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Business Unit"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "NatureOfTransaction",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "OrderDate",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "SiteId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Warehouse, Ship From Warehouse"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PickListId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "OBD Number"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PickListCreatedBy",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PickListDate",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PickListTime",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "UnitQty",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "Weight",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "Volume",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "QTYInLtrs",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Quantity In Litres"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "SoldToCustomerId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "SoldCustomerName",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "SoldToDestination",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "SoldToState",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ShipToCustomerId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ShipCustomerName",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ShipToDestination",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ShipToState",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PckLstFwdToWHDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "OBD Forwarded To Warehouse Date"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PckLstFwdToWHTime",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "OBD Forwarded To Warehouse Time"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ModeOfTransport",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VehicleType",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "Transporter",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "TransitDays",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "TransporterLRNo",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VehicleNo",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "InvoiceNo",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "InvoiceDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "InvoiceTime",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ScannedDocsSentDate",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PrmtRequired",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PrmtRecdOrGnrtdDate",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PrmtHandedOvrToTrnsptDate",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "MtrlMvdFromFctryDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Dispatch Date"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "MtrlMvdFromFctryTime",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Dispatch Time"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "NoOfDaysDelay",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ExpDeliveryDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Expected Delivery Date"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ActDeliveryDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Actual Delivery Date"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "DueShipped",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "CustReqDate",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "DelOTIF",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PickListRetForInvDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "OBD Returned For Invoice Date"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PickListRetForInvTime",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "OBD Returned For Invoice Time"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ScannedDocId",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ScannedDocFile",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ScannedDocsUpload",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ShipToDestinationOverride",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ShipToStateOverride",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "TransitDaysOverride",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "SoldToDestinationString",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ShipToDestinationString",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PickListUploadDateTime",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PickListToDispatchTime",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "WHRemarks",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Warehouse Remarks"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "FreightAmt",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "StatusUser",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Status"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PODDocUpload",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PODDocId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PODDocFile",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "TransportRemarks",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "OrgPODForPaymentDate",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "DeliveryStatus",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PickListFile",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PODDateAsPerAN",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ADDOverride",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "FreightAmtOverride",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ActDeliveryDateModTime",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "FreightAmtModTime",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "FiscalYear",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "UniqTransporterLRNo",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "FreightAmtBySO",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "Cancelled",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ManuallyUploaded",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "TagNum",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "SiteIdCode",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Shipping Point"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PendingStatus",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ScannedDocUploadDate",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PODDocUploadDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "SLWRemarks",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "DamagedDelivery",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "DamagedDlvryRemarks",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Damaged Delivery Remarks"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PONum",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Purchase Order Number"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VolumeInvoiced",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "UploadPermitDocs",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PermitDocFile",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PermitDocId",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "FreightAmtSys",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PickListEmailDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PickListEmailTime",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "DelayReason",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PickingCompleted",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PicklistSplitBy",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "Invoiced",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "DistributionRemarks",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VolumeOrg",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "MovedOutOfFactory",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PckLstFwdToWarehouse",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "OBD Forwarded To Warehouse"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PicklistSplitdate",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "OrgWeight",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ASNMailSent",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Advanced Shipment Notice Mail Sent"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "MtrlMvdFromFctryDateOverride",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "MtrlMvdFromFctryTimeOverride",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "TransportAckEmail",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "WHRemarksDesc",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "TransportRemarksDesc",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "SpecialVehicleRequest",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "SpecialVehicleApprover",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ShipToPincode",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "SoldToPincode",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "E_WayBillNo",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ScheduledDispatchDateTime",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "BwModifiedBy",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "SoldToRegion",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "SoldToCountry",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ShipToRegion",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ShipToCountry",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "GrossWeight",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "TransferPONumber",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "TransporterAssignedDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VehicleReportedDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VehicleReported",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "TransporterAssignedDateTime",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VehicleReportedDateTime",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "TransporterAssignedTime",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VehicleReportedTime",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "IndentMailSent",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "WeightInvoiced",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "IndentDate",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "IndentNo",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "IndentBy",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "SelectToIndentBy",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "CreateIndent",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "SelectToIndent",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "Approve",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PassingCapacity",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "IndentMailConfirm",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ProdOrder",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "DamageMailSent",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VehicleUtilDocId",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VehicleUtilDocDate",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VehicleUtilDocFile",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "TransporterForTLT",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ShipFromCity",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VehicleInwarded",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VehicleInwardDate",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VehicleInwardTime",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VehicleInwardDateTime",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VehicleUnloaded",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VehicleUnloadDate",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VehicleUnloadTime",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VehicleUnloadDateTime",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ShipToDistrict",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ShipToForLT",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ShipToPincodeOverride",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "PlannedGIDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ProdSMU",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "NoOfPallets",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ProdDelayReason",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "CustomerDefermentRemark",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ModeOfLoad",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "AllDocumentsVerified",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VehicleReleasedBy",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "QuotationId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "FreightAmtSysNew",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "FreightAmtChangeReason",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "FreightAmountApproval",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "WeightDifferenceMail",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ApproveFreightAmtMail",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "IsDecoOBD",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "SMUCode",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ActualTransporterName",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "TransporterType",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "LOTIFRemarks",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "LOTIFMailSent",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "LOTIFMailSentAt",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "Dispatched",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "AckOnInvoiceDocId",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "AckOnInvoiceUploadDate",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ACKOnInvoiceDocFile",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ACKOnInvoiceDocUpload",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ASNWithSKUMailSent",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ASNWithoutSKUMailSent",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "TODocUpload",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "TODocId",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "TODocFile",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "TODocUploadDate",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "Contracted",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "CustomerOTP",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "CustomerMobileNo",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "DriverMobileNo",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ActDeliveryTime",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "IsEPOD",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "OTPFistVerifiedOn",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "CustomerOTPCreatedOn",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "DriverLink",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "IsOTPVerified",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "DispatchSMSSent",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "CustomerOTPOld",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "DriverLinkOld",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "API_LastStatus",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "API_LastUpdateTimeStamp",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "API_ActDeliveryDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "API_ADDRemarks",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ADDUpdatedBy",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "InvoiceClubbed",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "MaterialType",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "FromPlant",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": "From Warehouse"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "ToPlant",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": "To Warehouse"
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "RouteType",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "FreightProvision",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "InvoiceFromShipmentReport",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "Tinting",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_LOGISTICS_TRACKER",
+    "COLUMN_NAME": "VirtualBilling",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_MST_TRANSIT_TIME_V2",
+    "COLUMN_NAME": "Id",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_MST_TRANSIT_TIME_V2",
+    "COLUMN_NAME": "SiteId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_MST_TRANSIT_TIME_V2",
+    "COLUMN_NAME": "ShipToState",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_MST_TRANSIT_TIME_V2",
+    "COLUMN_NAME": "ShipToDestination",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_MST_TRANSIT_TIME_V2",
+    "COLUMN_NAME": "FullLoadTD",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Full Load Transit Days"
+  },
+  {
+    "TABLE_NAME": "AN_MST_TRANSIT_TIME_V2",
+    "COLUMN_NAME": "PartLoadTD",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Part Load Transit Days"
+  },
+  {
+    "TABLE_NAME": "AN_MST_TRANSIT_TIME_V2",
+    "COLUMN_NAME": "AirTD",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Air Transit Days"
+  },
+  {
+    "TABLE_NAME": "AN_MST_TRANSIT_TIME_V2",
+    "COLUMN_NAME": "TrainTD",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Train Transit Days"
+  },
+  {
+    "TABLE_NAME": "AN_MST_TRANSIT_TIME_V2",
+    "COLUMN_NAME": "Duplicate",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_MST_TRANSIT_TIME_V2",
+    "COLUMN_NAME": "Transporter",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_MST_TRANSIT_TIME_V2",
+    "COLUMN_NAME": "ContractRemarks",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_MST_TRANSIT_TIME_V2",
+    "COLUMN_NAME": "SeaTD",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": "Sea Transit Days"
+  },
+  {
+    "TABLE_NAME": "AN_MST_TRANSIT_TIME_V2",
+    "COLUMN_NAME": "ShipToDistrict",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_MST_TRANSIT_TIME_V2",
+    "COLUMN_NAME": "BwModifiedBy",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_MST_TRANSIT_TIME_V2",
+    "COLUMN_NAME": "LastUpdateDateTime",
+    "INCLUDE_IN_MODEL": false,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_SKU_DETAILS",
+    "COLUMN_NAME": "ROSAId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_SKU_DETAILS",
+    "COLUMN_NAME": "Seq",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_SKU_DETAILS",
+    "COLUMN_NAME": "ProductCode",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_SKU_DETAILS",
+    "COLUMN_NAME": "Qty",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_SKU_DETAILS",
+    "COLUMN_NAME": "NumPacks",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_SKU_DETAILS",
+    "COLUMN_NAME": "TechnicalRecord",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_SKU_DETAILS",
+    "COLUMN_NAME": "Remarks",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_SKU_DETAILS",
+    "COLUMN_NAME": "InvoiceNo",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_SKU_DETAILS",
+    "COLUMN_NAME": "InvoiceDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_SKU_DETAILS",
+    "COLUMN_NAME": "ValueOfGoodsReturnedSystem",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_SKU_DETAILS",
+    "COLUMN_NAME": "ValueOfGoodsReturnedManual",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_SKU_DETAILS",
+    "COLUMN_NAME": "Currency",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_SKU_DETAILS",
+    "COLUMN_NAME": "UoM",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "ROSAId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "GSCComplaintNumber",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "SMU",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "InitiatedBy",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "InitiatedDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "CreatedBy",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "CreatedDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "StatusUser",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "InvoiceNumber",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "InvoiceDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "ValueOfGoodsReturned",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "QtyInLtrs",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "NumSKUsReturned",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "NumPacksReturned",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "TotalWeight",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "CustomerNameAndAddress",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "ContactAndNumber",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "AkzoNobelAddress",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "SiteId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "ComplaintType",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "ComplaintNature",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "RemarksBySalesPerson",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "QCRemarks",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "QCRemarksDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "TechMgrRemarks",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "TechMgrRemarksDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "AssignedTo",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "Transporter",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "VehicleNo",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "MtrlLeftCustomerPlaceDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "MtrlMvdToFctryDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "MtrlMvdToFctryTime",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "TransporterRemarks",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "WHRemarks",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "OrgInvoiceDocId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "OrgInvoiceUploadDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "OrgRejectionLetterDocId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "OrgRejectionLetterUploadDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "CustomerReportDocId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "CustomerReportUploadDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "CustomerInvoiceDocId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "CustomerInvoiceUploadDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "NegativeSODocId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "NegativeSOUploadDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "QCStatus",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "TransitDays",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "EDD",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "LRNO",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "TransporterAssignedDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "UpdateDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "QCName",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "TechMgrName",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "BCFinanceName",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "BCFinanceRemark",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "BCFinanceDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "SMName",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "SMRemark",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "SMDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "FreightAmt",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "CommPriceEntryStatus",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "NegSOInvoiceNumber",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "ReInitiatedDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "CustomerId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "CommRemark",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "CommDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "CommName",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "PriceDiffDocId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "PriceDiffUploadDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "ClosureDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "AdminRemark",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "AdminDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "AdminName",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "LRDocId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "LRDocUploadDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "CLosureRemarks",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "CustomerIdOrg",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "PrevAssignedTo",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "PrevStatus",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "CustomerEmailId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "Currency",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "LMRemarks",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "LMRemarksDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "LMRemarksBy",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "CLMRemarks",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "CLMRemarksDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "CLMRemarksBy",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "NegSOInvoiceNumberDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_ROSA_TRACKER",
+    "COLUMN_NAME": "ROSAAssignedToLogistics",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "DamageId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "ReportingDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "InvoiceNo",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "InvoiceDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "CustomerId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "CustomerName",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "SMU",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "ItemId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "Qty",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "Rate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "InvoiceAmount",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "InvAmountIncTax",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "Transporter",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "ReasonForDamage",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "DebitNoteOrInsurance",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "DebitNoteNo",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "DebitNoteDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "DebitAmount",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "DateOfClaim",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "ClaimRefNo",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "AmountOfClaim",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "InsuranceCo",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "DateOfInspection",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "SalvageValue",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "InsAmtCredited",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "InsAmtCrDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "LossAmount",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "Remarks",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "ActDeliveryDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "TransporterLRNo",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "BWDamageID",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "statusUser",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "ShortDelivery",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "CreatedBy",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "CreatedOn",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "PODDocId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "PODDocFile",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "PODDocUploadDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "SKUDetailsAddedAt",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "PickListId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "SupportingDocId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "SupportingDocFile",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "SupportingDocUploadDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "SiteId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "NatureOfTransaction",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "AN_TRANSIT_DAMAGE_TRACKER",
+    "COLUMN_NAME": "ModeOfLoad",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "ShippingPoint",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "SiteId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "FromPlant",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "IsDeco",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "IsCoatings",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "IsCoatingsPrimary",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "IsCoatingsSecondary",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "PlantForQuotation",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "MMCostPriority",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "ShipFromCity",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "FreightRegionSafex",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "CoatingsPrimaryEmailId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "InwardLPMHVehiclePlacement",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "OutwardLPMH",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "StateCode",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "IsCoatingsProductionPlant",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "ShipFromCityOverride",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "RegionForDeco",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "EPODForDeco",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "TQCCEmailAddresses",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "MST_SITE_MASTER",
+    "COLUMN_NAME": "VirtualBillingPlant",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "UserName",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "EncryptPassword",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "Salt",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "RefCode",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "FirstName",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "LastName",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "UserRole",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "EmailId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "HomePage",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "Phone",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "UserRoleType",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "ManagerEmailId",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "AllowSamePassword",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "PasswordExpired",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "CreatedDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "CreatedBy",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "LastLoginDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "IsActive",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "InActiveDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "LastPasswordChanged",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "MMTUserRoleType",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "MobileSupported",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "UseHttps",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "EquivalentUser",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "FlexUIExpiryDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "CompactView",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "ISActiveQuote",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_LOGIN",
+    "COLUMN_NAME": "DecoUserRoleType",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_ROLES_AND_ACCESS_VIEW",
+    "COLUMN_NAME": "IsDeco",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_ROLES_AND_ACCESS_VIEW",
+    "COLUMN_NAME": "IsCoatings",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_ROLES_AND_ACCESS_VIEW",
+    "COLUMN_NAME": "UserName",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_ROLES_AND_ACCESS_VIEW",
+    "COLUMN_NAME": "SiteIds",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_ROLES_AND_ACCESS_VIEW",
+    "COLUMN_NAME": "TQAccess",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_ROLES_AND_ACCESS_VIEW",
+    "COLUMN_NAME": "TQAmtVisible",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_ROLES_AND_ACCESS_VIEW",
+    "COLUMN_NAME": "TQApprovedAmtVisible",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_ROLES_AND_ACCESS_VIEW",
+    "COLUMN_NAME": "UserRoleType",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  },
+  {
+    "TABLE_NAME": "USR_ROLES_AND_ACCESS_VIEW",
+    "COLUMN_NAME": "LastLoginDate",
+    "INCLUDE_IN_MODEL": true,
+    "ALT_SYNONYMS": null
+  }
+]

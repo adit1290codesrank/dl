@@ -1,0 +1,362 @@
+[
+  {
+    "Id": 1,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:04:40.160000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "What is the largest SMU based on VolumeInvoiced?",
+    "output": "SELECT TOP 1 SMU, SUM(VolumeInvoiced) TotalVolumeInvoice\nFROM AN_LOGISTICS_TRACKER\nGROUP BY SMU\nORDER BY SUM(VolumeInvoiced) DESC;"
+  },
+  {
+    "Id": 2,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:04:40.170000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "How many different SONum were Invoiced during the month of Apr 2025?",
+    "output": "SELECT COUNT(DISTINCT SONum)\nFROM AN_LOGISTICS_TRACKER\nWHERE InvoiceDate BETWEEN '2025-04-01' AND '2025-04-30';"
+  },
+  {
+    "Id": 3,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:04:40.180000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Top 5 Customer based on volume invoiced in april excluding Stock Transfers?",
+    "output": "SELECT TOP 5 ShipCustomerName\nFROM AN_LOGISTICS_TRACKER\nWHERE InvoiceDate BETWEEN '2025-04-01' AND '2025-04-30'\nAND NatureOfTransaction != 'Stock Transfer'\nGROUP BY ShipCustomerName\nORDER BY SUM(VolumeInvoiced) DESC;"
+  },
+  {
+    "Id": 4,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:04:40.190000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "What are the different business units from Bangalore Warehouse?",
+    "output": "SELECT DISTINCT SMU\nFROM AN_LOGISTICS_TRACKER\nWHERE SiteId = 'Bangalore'"
+  },
+  {
+    "Id": 5,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:04:40.200000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "What is the Sales Order Number for OBD ABC123?",
+    "output": "SELECT SONum\nFROM AN_LOGISTICS_TRACKER\nWHERE PickListID = 'ABC123'"
+  },
+  {
+    "Id": 6,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:04:40.207000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Give all the OBDs invoiced in the month of april 2025",
+    "output": "SELECT PickListId\nFROM AN_LOGISTICS_TRACKER\nWHERE InvoiceDate BETWEEN '2025-04-01' AND '2025-04-30';"
+  },
+  {
+    "Id": 7,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:04:40.220000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Who is the Area Sales Manager for customer code ABC123",
+    "output": "SELECT SalesPersonName\nFROM AN_CUSTOMER_VS_ASM_RSM\nWHERE CustomerCode = 'ABC123'"
+  },
+  {
+    "Id": 8,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:04:40.230000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Who is the ASM for customer code ABC123",
+    "output": "SELECT SalesPersonName\nFROM AN_CUSTOMER_VS_ASM_RSM\nWHERE CustomerCode = 'ABC123'"
+  },
+  {
+    "Id": 9,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:04:40.243000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Track the vehicle with OBD Number ABC123",
+    "output": "EXEC VehicleTracker_GetInfo @pickListId = 'ABC123'"
+  },
+  {
+    "Id": 10,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:04:40.257000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Vehicle Utilization for the period between 2025-01-01 to 2025-01-31 for transporter ABC123",
+    "output": "EXEC ANDashBoardVehicleUtilization @startDate = '2025-01-01', @endDate = '2025-01-31', @transporter = 'ABC123'"
+  },
+  {
+    "Id": 11,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:04:40.267000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Vehicle Utilization for the period between 2025-01-01 to 2025-01-31",
+    "output": "EXEC ANDashBoardVehicleUtilization @startDate = '2025-01-01', @endDate = '2025-01-31'"
+  },
+  {
+    "Id": 12,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:04:40.277000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Vehicle Utilization for the period between 2025-01-01 to 2025-01-31 by transporter (i.e. list the transporters)",
+    "output": "EXEC ANDashBoardVehicleUtilization @startDate = '2025-01-01', @endDate = '2025-01-31', @expandTransporter = 1"
+  },
+  {
+    "Id": 13,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:04:40.287000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Count the number of OBDs for Marine (here marine is a business unit/SMU)",
+    "output": "SELECT COUNT(*)\nFROM AN_LOGISTICS_TRACKER\nWHERE SMU = 'Marine'"
+  },
+  {
+    "Id": 14,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:04:40.297000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Who are the RSM for Marine (here marine is a business unit/SMU)",
+    "output": "SELECT DISTINCT RSM\nFROM AN_CUSTOMER_VS_ASM_RSM\nWHERE SMU = 'Marine'"
+  },
+  {
+    "Id": 15,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:04:40.307000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Who is the RSM for OBD Number ABC123",
+    "output": "SELECT A.RSM,B.PickListId\nFROM AN_CUSTOMER_VS_ASM_RSM A JOIN AN_LOGISTICS_TRACKER B\nON A.CustomerCode = B.SoldToCustomerId\nWHERE B.PickListId = 'ABC123'"
+  },
+  {
+    "Id": 16,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:04:40.320000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "What is the number of sales for MPY",
+    "output": "SELECT COUNT(*)\nFROM AN_LOGISTICS_TRACKER\nWHERE SMU IN( 'Protective Coating', 'Marine')\nAND NatureOfTransaction = 'Sales'"
+  },
+  {
+    "Id": 17,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:09:15.603000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "List top Warehouses where OBDs are Pending Dispatch for more than 7 days",
+    "output": "SELECT SiteId, COUNT(PickListId)\nFROM AN_LOGISTICS_TRACKER\nWHERE InvoiceDate < DATEADD(DAY, -7, GETDATE())\nAND PendingStatus = 'Pending Dispatch'\nAND ProdOrder = 0\nGROUP BY SiteId\nORDER BY COUNT(*) DESC"
+  },
+  {
+    "Id": 18,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:12:01.093000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "List different pending statuses in Cochin warehouse for OBDs loaded after Apr 2025",
+    "output": "SELECT PendingStatus, COUNT(PickListId)\nFROM AN_LOGISTICS_TRACKER\nWHERE PendingStatus NOT IN ('Cancelled', 'Delivered')\nAND ProdOrder = 0\nAND SiteId = 'Cochin'\nAND PickListEmailDate >= '2025-04-01'\nGROUP BY PendingStatus\nORDER BY COUNT(*) DESC"
+  },
+  {
+    "Id": 19,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:29:16.683000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "List top vehicle types with highest time taken for OBD Create To Picking for Bangalore for OBD received after March 2025",
+    "output": "SELECT VehicleType, AVG(dbo.HoursDifferenceF(PckLstFwdToWHDate,PckLstFwdToWHTime,PickListRetForInvDate,PickListRetForInvTime)) OBDCreateToPicking\nFROM AN_LOGISTICS_TRACKER\nWHERE PendingStatus NOT IN ('Cancelled', 'Pending Picking')\nAND ProdOrder = 0\nAND SiteId = 'Bangalore'\nAND PickListEmailDate >= '2025-03-01'\nGROUP BY VehicleType\nORDER BY OBDCreateToPicking DESC"
+  },
+  {
+    "Id": 20,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:37:50.903000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "List top destinations with highest time taken for Picking To Invoice for plant Q8CD for OBD received after April 2025",
+    "output": "SELECT ISNULL(ShipToDestinationOverride, ShipToDestination) Destination, \nAVG(dbo.HoursDifferenceF(PckLstFwdToWHDate,PckLstFwdToWHTime,PickListRetForInvDate,PickListRetForInvTime)) PickingToInvoice\nFROM AN_LOGISTICS_TRACKER\nWHERE PendingStatus NOT IN ('Cancelled', 'Pending Picking')\nAND ProdOrder = 0\nAND FromPlant = 'Q8CD'\nAND PickListEmailDate >= '2025-04-01'\nGROUP BY ISNULL(ShipToDestinationOverride, ShipToDestination)\nORDER BY PickingToInvoice DESC"
+  },
+  {
+    "Id": 21,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:43:11.290000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "List top 10 OBDs with most time taken for Invoicing to Dispatch for plant Q80D for OBD received after April 2025",
+    "output": "SELECT TOP 10 PickListId OBDNo, ShipCustomerName, SiteId Warehouse, \nISNULL(ShipToDestinationOverride, ShipToDestination) Destination, \nPickListEmailDate, InvoiceDate, InvoiceTime,\nISNULL(MtrlMvdFromFctryDateOverride,MtrlMvdFromFctryDate) DispatchDate, \nISNULL(MtrlMvdFromFctryTimeOverride,MtrlMvdFromFctrytime) DispatchTime,\ndbo.HoursDifferenceF(InvoiceDate,InvoiceTime,ISNULL(MtrlMvdFromFctryDateOverride,MtrlMvdFromFctryDate),\nISNULL(MtrlMvdFromFctryTimeOverride,MtrlMvdFromFctrytime)) InvoiceToDispatchInMinutes\nFROM AN_LOGISTICS_TRACKER\nWHERE PendingStatus NOT IN ('Cancelled', 'Pending Picking')\nAND ProdOrder = 0\nAND FromPlant = 'Q80D'\nAND PickListEmailDate >= '2025-04-01'\nORDER BY InvoiceToDispatchInMinutes DESC"
+  },
+  {
+    "Id": 22,
+    "addedBy": null,
+    "addedAt": "2025-06-15 12:47:29.587000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "List top 10 OBDs with most time taken for Picking to Dispatch for plant Q80D for OBD received after April 2025",
+    "output": "SELECT TOP 10 PickListId OBDNo, ShipCustomerName, SiteId Warehouse, \nISNULL(ShipToDestinationOverride, ShipToDestination) Destination, \nPickListEmailDate OBDEmailDate, PickListRetForInvDate OBDRetForInvDate, PickListRetForInvTime OBDRetForInvTime,\nISNULL(MtrlMvdFromFctryDateOverride,MtrlMvdFromFctryDate) DispatchDate, \nISNULL(MtrlMvdFromFctryTimeOverride,MtrlMvdFromFctrytime) DispatchTime, \ndbo.HoursDifferenceF(PickListRetForInvDate,PickListRetForInvTime,ISNULL(MtrlMvdFromFctryDateOverride,MtrlMvdFromFctryDate),ISNULL(MtrlMvdFromFctryTimeOverride,MtrlMvdFromFctrytime)) PickingToDispatchInMinutes\nFROM AN_LOGISTICS_TRACKER\nWHERE PendingStatus NOT IN ('Cancelled', 'Pending Picking')\nAND ProdOrder = 0\nAND FromPlant = 'Q80D'\nAND PickListEmailDate >= '2025-04-01'\nORDER BY PickingToDispatchInMinutes DESC"
+  },
+  {
+    "Id": 25,
+    "addedBy": null,
+    "addedAt": "2025-06-15 13:01:06.250000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Vendor or Transporter Dashboard for Cube Logistics for month of Jan 2025",
+    "output": "EXEC Report_SingleTransporterDashboard '_CHATBOT_', 'deb', 'CUBE LOGISTICS', '2025-01-01', '2025-01-31';\nSELECT *\nFROM REPORT_SINGLE_TRANSPORTER_DASHBOARD"
+  },
+  {
+    "Id": 26,
+    "addedBy": null,
+    "addedAt": "2025-06-15 13:05:52.727000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "What is the DOT (Delivery On Time) for Safe Express for month of Jan 2025",
+    "output": "EXEC Report_SingleTransporterDashboard '_CHATBOT_', 'deb', 'Safe Express', '2025-01-01', '2025-01-31'\nSELECT NumberOfConsignments, DOTPercentage\nFROM REPORT_SINGLE_TRANSPORTER_DASHBOARD"
+  },
+  {
+    "Id": 27,
+    "addedBy": null,
+    "addedAt": "2025-06-15 13:08:24.363000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "What is the average time taken to upload PODs for SYNERGY BAXIS for month of Jan 2025",
+    "output": "EXEC Report_SingleTransporterDashboard '_CHATBOT_', 'deb', 'SYNERGY BAXIS', '2025-01-01', '2025-01-31'\nSELECT PODUploadCount, AvgUploadDays\nFROM REPORT_SINGLE_TRANSPORTER_DASHBOARD"
+  },
+  {
+    "Id": 28,
+    "addedBy": null,
+    "addedAt": "2025-06-22 20:00:57.303000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "What is the overall vehicle utilization between Jan 1st and Feb 28th?",
+    "output": "EXEC ANDashBoardVehicleUtilization '_CB_', @startDate = '2025-01-01', @endDate = '2025-02-28'"
+  },
+  {
+    "Id": 29,
+    "addedBy": null,
+    "addedAt": "2025-06-22 20:00:57.303000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "What is the vehicle utiliation by (vehicle) type in the month of march?",
+    "output": "EXEC ANDashBoardVehicleUtilization '_CB_', @startDate = '2025-03-01', @endDate = '2025-03-31', @expandVehicleType = 1"
+  },
+  {
+    "Id": 30,
+    "addedBy": null,
+    "addedAt": "2025-06-22 20:00:57.303000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "What is the vehicle utiliation by transporter in the month of Apr 2024?",
+    "output": "EXEC ANDashBoardVehicleUtilization '_CB_', @startDate = '2024-04-01', @endDate = '2024-04-30', @expandTransporter = 1"
+  },
+  {
+    "Id": 31,
+    "addedBy": null,
+    "addedAt": "2025-06-22 20:00:57.303000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "List vehicle utilization by transporter and vehicle type in the month of May?",
+    "output": "EXEC ANDashBoardVehicleUtilization '_CB_', @startDate = '2024-05-01', @endDate = '2024-05-31', @expandTransporter = 1, @expandVehicleType = 1"
+  },
+  {
+    "Id": 32,
+    "addedBy": null,
+    "addedAt": "2025-06-22 20:00:57.303000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "List vehicle utilization for LR no ABC123?",
+    "output": "EXEC ANDashBoardVehicleUtilization '_CB_', @transporterlrno='ABC123'"
+  },
+  {
+    "Id": 33,
+    "addedBy": null,
+    "addedAt": "2025-06-26 20:47:03.107000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Why following OBDs are not available?\nOBD123\nOBD456\nOBD678",
+    "output": "EXEC OBDAvailability '_VIEWING_', '', 'OBD123,OBD456,OBD678'"
+  },
+  {
+    "Id": 34,
+    "addedBy": null,
+    "addedAt": "2025-06-26 20:47:03.107000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Check the availability of the following OBDs\nOBD123\nOBD456\nOBD678",
+    "output": "EXEC OBDAvailability '_VIEWING_', '', 'OBD123,OBD456,OBD678'"
+  },
+  {
+    "Id": 35,
+    "addedBy": null,
+    "addedAt": "2025-06-26 20:47:03.107000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Reset transporters for the following OBDs\nOBD123\nOBD456\nOBD678",
+    "output": "EXEC CB_OBDMassUpdate '_CB_USERNAME_', 'OBD123,OBD456,OBD678', 'Transporter', NULL"
+  },
+  {
+    "Id": 36,
+    "addedBy": null,
+    "addedAt": "2025-06-26 20:47:03.107000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Set transporter as Safe Express for the following OBDs\nOBD123\nOBD456\nOBD678",
+    "output": "EXEC CB_OBDMassUpdate '_CB_USERNAME_', 'OBD123,OBD456,OBD678', 'Transporter', 'SAFE EXPRESS'"
+  },
+  {
+    "Id": 37,
+    "addedBy": null,
+    "addedAt": "2025-06-26 20:47:03.107000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Set OBD Date as 2025-01-01 for the following OBDs\nOBD123\nOBD456\nOBD678",
+    "output": "EXEC CB_OBDMassUpdate '_CB_USERNAME_', 'OBD123,OBD456,OBD678', 'PickListEmailDate', '2025-01-01'"
+  },
+  {
+    "Id": 38,
+    "addedBy": null,
+    "addedAt": "2025-07-09 17:09:54.107000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Set transporter as Safexpress for the following OBDs\nOBD123\nOBD456\nOBD678",
+    "output": "EXEC CB_OBDMassUpdate '_CB_USERNAME_', 'OBD123,OBD456,OBD678', 'Transporter', 'SAFE EXPRESS'"
+  },
+  {
+    "Id": 39,
+    "addedBy": null,
+    "addedAt": "2025-07-09 17:09:54.107000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Set transporter as Safex for the following OBDs\nOBD123\nOBD456\nOBD678",
+    "output": "EXEC CB_OBDMassUpdate '_CB_USERNAME_', 'OBD123,OBD456,OBD678', 'Transporter', 'SAFE EXPRESS'"
+  },
+  {
+    "Id": 40,
+    "addedBy": null,
+    "addedAt": "2025-07-09 17:09:54.107000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Set Invoice Date as 2025-01-01 for the following OBDs\nOBD123\nOBD456\nOBD678",
+    "output": "EXEC CB_OBDMassUpdate '_CB_USERNAME_', 'OBD123,OBD456,OBD678', 'InvoiceDate', '2025-01-01'"
+  },
+  {
+    "Id": 41,
+    "addedBy": null,
+    "addedAt": "2025-07-09 17:09:54.107000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Cancel following OBDs\nOBD123\nOBD456\nOBD678",
+    "output": "EXEC CB_OBDMassUpdate '_CB_USERNAME_', 'OBD123,OBD456,OBD678', 'Cancelled', 1"
+  },
+  {
+    "Id": 42,
+    "addedBy": null,
+    "addedAt": "2025-07-09 17:09:54.107000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Set Actual Delivery Date  as 2025-01-01 for the following OBDs\nOBD123\nOBD456\nOBD678",
+    "output": "EXEC CB_OBDMassUpdate '_CB_USERNAME_', 'OBD123,OBD456,OBD678', 'ActDeliveryDate', '2025-01-01'"
+  },
+  {
+    "Id": 43,
+    "addedBy": null,
+    "addedAt": "2025-07-09 17:37:08.430000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Clear Proof Of Delivery for the following LRs\nLR123\nLR456\nLR678",
+    "output": "EXEC CB_OBDMassUpdate '_CB_USERNAME_', 'LR123,LR456,LR678', 'PODDocId', ''"
+  },
+  {
+    "Id": 44,
+    "addedBy": null,
+    "addedAt": "2025-07-09 17:37:08.430000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Set Dispatch Date  as 2025-01-01 for the following Invoices\nInvoice123\nInvoice456\nInvoice678",
+    "output": "EXEC CB_OBDMassUpdate '_CB_USERNAME_', 'Invoice123,Invoice456,Invoice678', 'MtrlMvdFromFctryDate', '2025-01-01'"
+  },
+  {
+    "Id": 45,
+    "addedBy": null,
+    "addedAt": "2025-07-09 17:37:08.430000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Mark these as deco OBDs\nOBD123\nOBD456\nOBD678",
+    "output": "EXEC CB_OBDMassUpdate '_CB_USERNAME_', 'OBD123,OBD456,OBD678', 'Business', 'Deco'"
+  },
+  {
+    "Id": 46,
+    "addedBy": null,
+    "addedAt": "2025-07-09 17:37:08.430000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Mark these as Coatings OBDs\nOBD123\nOBD456\nOBD678",
+    "output": "EXEC CB_OBDMassUpdate '_CB_USERNAME_', 'OBD123,OBD456,OBD678', 'Business', 'Coatings'"
+  },
+  {
+    "Id": 47,
+    "addedBy": null,
+    "addedAt": "2025-07-09 17:37:08.430000",
+    "instruction": "Convert the following question into an SQL query",
+    "input": "Remove PODs of the listed OBDs\nOBD123\nOBD456\nOBD678",
+    "output": "EXEC CB_OBDMassUpdate '_CB_USERNAME_', 'OBD123,OBD456,OBD678', 'PODDocId', ''"
+  }
+]
