@@ -135,7 +135,7 @@ class SchemaRAGNet
             if (nb == 0) nb = 1;
 
             Tensor loss_val = Tensor::zeros(1, 1);
-            Tensor grad = Tensor::zeros({bs * seq_len, vocab_size});
+            Tensor grad = Tensor::zeros(bs * seq_len, vocab_size);
 
             std::vector<int> idx(n);
             std::iota(idx.begin(), idx.end(), 0);
