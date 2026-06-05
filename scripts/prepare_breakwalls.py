@@ -2,13 +2,7 @@ import os
 import json
 import struct
 import array
-import re
-
-def tokenize(text):
-    # Simple tokenizer: lowercase, separate punctuation
-    text = str(text).lower()
-    text = re.sub(r"([.,!?()'\"\[\]\{\}])", r" \1 ", text)
-    return [w for w in text.split() if w.strip()]
+from tokenizers import Tokenizer
 
 def load_schema(filepath):
     with open(filepath, 'r', encoding='utf-8') as f:
@@ -20,78 +14,46 @@ def load_schema(filepath):
             col_name = item.get("COLUMN_NAME", "")
             table_name = item.get("TABLE_NAME", "")
             synonyms = item.get("ALT_SYNONYMS", "")
-            
-            # We construct a descriptive string for each included column
             desc = f"{table_name} {col_name} {synonyms if synonyms else ''}"
             schema_elements.append(desc)
             
     return schema_elements
 
-def load_samples(filepath):
-    with open(filepath, 'r', encoding='utf-8') as f:
-        samples = json.load(f)
-    
-    pairs = []
-    for s in samples:
-        input_text = s.get("input", "")
-        output_text = s.get("output", "")
-        if input_text and output_text:
-            pairs.append((input_text, output_text))
-            
-    return pairs
-
 def generate_dataset():
-    # Paths
     base_dir = os.path.dirname(os.path.abspath(__file__))
     tables_path = os.path.join(base_dir, "..", "all_tables.json")
-    samples_path = os.path.join(base_dir, "..", "all_samples.json")
+    samples_path = os.path.join(base_dir, "..", "data", "synthetic_dataset.json")
     out_dir = os.path.join(base_dir, "..", "data")
     
-    os.makedirs(out_dir, exist_ok=True)
+    tokenizer_path = os.path.join(out_dir, "bpe_tokenizer.json")
+    if not os.path.exists(tokenizer_path):
+        print("Error: Run train_bpe.py first!")
+        return
+        
+    print("Loading HuggingFace Tokenizer...")
+    tokenizer = Tokenizer.from_file(tokenizer_path)
+    vocab_size = tokenizer.get_vocab_size()
+    print(f"BPE Vocab Size: {vocab_size}")
     
-    print(f"Loading schema from {tables_path}...")
+    print("Loading schema...")
     schema_elements = load_schema(tables_path)
-    print(f"Loaded {len(schema_elements)} included schema columns.")
     
-    print(f"Loading samples from {samples_path}...")
-    samples = load_samples(samples_path)
-    print(f"Loaded {len(samples)} training pairs.")
-
-    vocab = {"[PAD]": 0, "[UNK]": 1, "[CLS]": 2, "[SEP]": 3}
-    
-    def get_id(word):
-        if word not in vocab:
-            vocab[word] = len(vocab)
-        return vocab[word]
+    print("Loading synthetic dataset...")
+    with open(samples_path, 'r', encoding='utf-8') as f:
+        samples = json.load(f)
         
-    # Process schema: for now we represent each schema element by the average/first token 
-    # to fit into the flat (schema_size) array format expected by the current C++ loader.
-    # In a full model, this would be a 2D tensor (schema_size x schema_seq_len).
-    schema_tokens_list = [tokenize(desc) for desc in schema_elements]
-    
-    for tokens in schema_tokens_list:
-        for t in tokens:
-            get_id(t)
-            
+    print(f"Tokenizing {len(samples)} examples with BPE...")
     tokenized_samples = []
-    for inp, out in samples:
-        inp_toks = tokenize(inp)
-        out_toks = tokenize(out)
-        for t in inp_toks + out_toks:
-            get_id(t)
-        tokenized_samples.append((inp_toks, out_toks))
+    for s in samples:
+        inp = s["input"]
+        out = s["output"]
+        inp_ids = tokenizer.encode(inp).ids
+        out_ids = tokenizer.encode(out).ids
+        tokenized_samples.append((inp_ids, out_ids))
         
-    vocab_list = sorted(vocab.keys(), key=lambda w: vocab[w])
-    vocab_size = len(vocab_list)
+    schema_tokens_list = [tokenizer.encode(desc).ids for desc in schema_elements]
     
-    print(f"Vocabulary size: {vocab_size}")
-    
-    with open(os.path.join(out_dir, "breakwalls_vocab.txt"), "w", encoding="utf-8") as f:
-        for w in vocab_list:
-            f.write(f"{w}\n")
-
-    # Serialize
-    n_train = int(len(tokenized_samples) * 0.8)
+    n_train = int(len(tokenized_samples) * 0.9)
     n_val = len(tokenized_samples) - n_train
     seq_len = 64
     schema_size = len(schema_elements)
@@ -99,28 +61,30 @@ def generate_dataset():
     train_samples = tokenized_samples[:n_train]
     val_samples = tokenized_samples[n_train:]
     
-    def pad_sequence(toks, length):
-        ids = [vocab.get(t, vocab["[UNK]"]) for t in toks]
+    pad_id = tokenizer.token_to_id("[PAD]")
+    if pad_id is None: pad_id = 0
+    unk_id = tokenizer.token_to_id("[UNK]")
+    if unk_id is None: unk_id = 1
+
+    def pad_sequence(ids, length):
         if len(ids) > length:
             return ids[:length]
-        return ids + [vocab["[PAD]"]] * (length - len(ids))
+        return ids + [pad_id] * (length - len(ids))
 
     def write_set(f, dataset, n):
         X = array.array('f', [0.0] * (n * seq_len))
         Y = array.array('f', [0.0] * (n * seq_len))
-        
-        # Schema is static for all queries, so we just repeat the schema token IDs
-        # For simplicity, we just take the first token ID of the schema description to represent it.
         Schema = array.array('f', [0.0] * (n * schema_size))
-        schema_ids = [vocab.get(toks[0], vocab["[UNK]"]) if toks else vocab["[UNK]"] for toks in schema_tokens_list]
         
-        for i, (inp_toks, out_toks) in enumerate(dataset):
-            inp_ids = pad_sequence(inp_toks, seq_len)
-            out_ids = pad_sequence(out_toks, seq_len)
+        schema_ids = [toks[0] if toks else unk_id for toks in schema_tokens_list]
+        
+        for i, (inp_ids, out_ids) in enumerate(dataset):
+            inp_pad = pad_sequence(inp_ids, seq_len)
+            out_pad = pad_sequence(out_ids, seq_len)
             
             for j in range(seq_len):
-                X[i * seq_len + j] = float(inp_ids[j])
-                Y[i * seq_len + j] = float(out_ids[j])
+                X[i * seq_len + j] = float(inp_pad[j])
+                Y[i * seq_len + j] = float(out_pad[j])
                 
             for j in range(schema_size):
                 Schema[i * schema_size + j] = float(schema_ids[j])
@@ -140,7 +104,7 @@ def generate_dataset():
         write_set(f, train_samples, n_train)
         write_set(f, val_samples, n_val)
         
-    print(f"Successfully generated dataset {out_bin}!")
+    print(f"Successfully generated {out_bin} from synthetic dataset!")
     print(f"Train samples: {n_train}, Val samples: {n_val}, Seq Len: {seq_len}, Schema Size: {schema_size}")
 
 if __name__ == "__main__":

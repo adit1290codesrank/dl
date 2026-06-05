@@ -1,12 +1,11 @@
 #include "../models/transformers/schema_rag_net.h"
+#include "../include/core/tokenizer.h"
 #include <iostream>
 #include <vector>
 #include <fstream>
 #include <string>
 #include <map>
 #include <sstream>
-#include <algorithm>
-#include <cctype>
 
 void load_metadata_and_schema(const std::string& path, int& seq_len, int& vocab_size, int& schema_size, std::vector<float>& Schema) 
 {
@@ -32,46 +31,6 @@ void load_metadata_and_schema(const std::string& path, int& seq_len, int& vocab_
     file.close();
 }
 
-void load_vocab(const std::string& path, std::map<std::string, int>& w2i, std::vector<std::string>& i2w) {
-    std::ifstream file(path);
-    if(!file.is_open()) throw std::runtime_error("Could not open " + path);
-    std::string word;
-    int idx = 0;
-    while(std::getline(file, word)) {
-        if(!word.empty() && word.back() == '\r') word.pop_back();
-        w2i[word] = idx++;
-        i2w.push_back(word);
-    }
-}
-
-std::vector<float> tokenize(const std::string& text, const std::map<std::string, int>& w2i, int seq_len) {
-    std::string s = text;
-    std::transform(s.begin(), s.end(), s.begin(), ::tolower);
-    
-    std::string spaced = "";
-    for(char c : s) {
-        if(std::string(".,!?()'\"[]{}").find(c) != std::string::npos) {
-            spaced += " "; spaced += c; spaced += " ";
-        } else {
-            spaced += c;
-        }
-    }
-    
-    std::vector<float> toks(seq_len, 0.0f); // Default to PAD (0)
-    std::stringstream ss(spaced);
-    std::string word;
-    int i = 0;
-    int unk_id = 1;
-    if(w2i.count("[UNK]")) unk_id = w2i.at("[UNK]");
-    
-    while(ss >> word && i < seq_len) {
-        if(w2i.count(word)) toks[i] = w2i.at(word);
-        else toks[i] = unk_id;
-        i++;
-    }
-    return toks;
-}
-
 int main()
 {
     try {
@@ -81,9 +40,8 @@ int main()
         std::cout << "Loading Database Schema & Metadata..." << std::endl;
         load_metadata_and_schema("data/breakwalls.bin", seq_len, vocab_size, schema_size, Schema);
 
-        std::map<std::string, int> w2i;
-        std::vector<std::string> i2w;
-        load_vocab("data/breakwalls_vocab.txt", w2i, i2w);
+        std::cout << "Loading BPE Tokenizer..." << std::endl;
+        BPETokenizer tokenizer("data/bpe_vocab.txt", "data/bpe_merges.txt");
 
         int dim = 256; 
         int heads = 8;
@@ -106,7 +64,9 @@ int main()
             std::getline(std::cin, query);
             if(query.empty() || query == "exit") break;
             
-            std::vector<float> X = tokenize(query, w2i, seq_len);
+            std::vector<int> ids = tokenizer.encode(query, seq_len);
+            std::vector<float> X(seq_len);
+            for(int i = 0; i < seq_len; ++i) X[i] = (float)ids[i];
             
             Tensor dX = Tensor::upload(X, {1, seq_len});
             Tensor dS = Tensor::upload(Schema, {1, schema_size});
@@ -114,7 +74,7 @@ int main()
             Tensor pred = model.forward(dX, dS);
             std::vector<float> out_probs = pred.download();
             
-            std::cout << "SQL  > ";
+            std::vector<int> out_ids;
             for(int t = 0; t < seq_len; ++t) {
                 int best_idx = 0;
                 float best_prob = -1.0f;
@@ -125,12 +85,22 @@ int main()
                         best_idx = v;
                     }
                 }
-                
-                std::string word = i2w[best_idx];
-                if(word == "[PAD]") break;
-                std::cout << word << " ";
+                out_ids.push_back(best_idx);
             }
-            std::cout << std::endl;
+            
+            std::string sql_out = tokenizer.decode(out_ids);
+            // Quick cleanup of typical BPE spacing artifacts for presentation
+            std::string clean_sql;
+            for(size_t i=0; i<sql_out.length(); i++) {
+                if(i > 0 && sql_out[i] == '#' && sql_out[i-1] == '#') continue;
+                if(sql_out[i] == '#' && i+1 < sql_out.length() && sql_out[i+1] == '#') {
+                    if(!clean_sql.empty() && clean_sql.back() == ' ') clean_sql.pop_back();
+                    continue;
+                }
+                clean_sql += sql_out[i];
+            }
+            
+            std::cout << "SQL  > " << clean_sql << std::endl;
         }
 
     } catch (const std::exception& e) {
