@@ -1,5 +1,5 @@
 #pragma once
-#include "bert.h"
+#include "text_encoder.h"
 #include "../../include/layers/pointer_attention.h"
 #include <iostream>
 
@@ -7,8 +7,8 @@
 class SchemaRAGNet
 {
     private:
-        BERT* query_encoder;
-        BERT* schema_encoder;
+        TextEncoder* query_encoder;
+        TextEncoder* schema_encoder;
         PointerAttention* pointer_layer;
 
         int vocab_size;
@@ -22,8 +22,8 @@ class SchemaRAGNet
             : vocab_size(vocab_size), max_seq_len(max_seq_len), dimension(dimension), heads(heads), depth(depth)
         {
             // The dual encoders (query and schema share same architecture but different weights)
-            query_encoder = new BERT(vocab_size, max_seq_len, dimension, heads, depth, dimension);
-            schema_encoder = new BERT(vocab_size, max_seq_len, dimension, heads, depth, dimension);
+            query_encoder = new TextEncoder(vocab_size, max_seq_len, dimension, heads, depth);
+            schema_encoder = new TextEncoder(vocab_size, max_seq_len, dimension, heads, depth);
             
             // Explicit Schema-RAG Pointer Layer
             pointer_layer = new PointerAttention(dimension, heads);
