@@ -9,6 +9,7 @@
 #include <numeric>
 #include <algorithm>
 #include <chrono>
+#include <cuda_runtime.h>
 
 // SchemaRAGNet implements the Dual-Encoder Architecture with Pointer-Generator Decoder
 class SchemaRAGNet
