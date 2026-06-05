@@ -189,7 +189,7 @@ __global__ void adam_kernel(float* w,const float* grad,float* m,float* v,float l
         float g=grad[idx]+(lambda*w[idx]);
         
         // Gradient clipping: clamp per-element gradient to prevent exploding gradients
-        float max_grad = 1.0f;
+        float max_grad = 5.0f;
         if(g > max_grad) g = max_grad;
         if(g < -max_grad) g = -max_grad;
         
