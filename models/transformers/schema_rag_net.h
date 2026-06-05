@@ -55,6 +55,10 @@ class SchemaRAGNet
             auto result = pointer_layer->forward_dual(Q_emb, K_emb);
             Tensor context = result.first;
             
+            // CRITICAL FIX: Add residual connection so gradients can flow directly 
+            // into the Query Encoder, bypassing the frozen Schema vectors!
+            context = context + Q_emb;
+            
             // Note: pointer scatter logic omitted for backprop simplicity
             // Standard Seq2Seq Projection
             int batch = context.shape[0];
