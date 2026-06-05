@@ -32,12 +32,12 @@ class TextEncoder : public Layer
         std::vector<std::unique_ptr<Transformer>> blocks;
 
     public:
-        TextEncoder(int vocab_size, int max_len, int dim, int heads, int depth)
+        TextEncoder(int vocab_size, int max_len, int dim, int heads, int depth, bool causal = false)
             : vocab_size(vocab_size), seq_len(max_len), dim(dim), depth(depth),
               token_emb(vocab_size, dim), pos_emb(max_len, dim), emb_drop(0.4f)
         {
             for(int i = 0; i < depth; ++i) 
-                blocks.push_back(std::make_unique<Transformer>(dim, heads, false));
+                blocks.push_back(std::make_unique<Transformer>(dim, heads, causal));
         }
 
         Tensor forward(const Tensor& X) override

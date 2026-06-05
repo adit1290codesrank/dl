@@ -55,7 +55,7 @@ def generate_dataset():
     
     n_train = int(len(tokenized_samples) * 0.9)
     n_val = len(tokenized_samples) - n_train
-    seq_len = 64
+    seq_len = 128 # Increased to fit both English and SQL
     schema_size = len(schema_elements)
     
     train_samples = tokenized_samples[:n_train]
@@ -65,6 +65,10 @@ def generate_dataset():
     if pad_id is None: pad_id = 0
     unk_id = tokenizer.token_to_id("[UNK]")
     if unk_id is None: unk_id = 1
+    
+    # We need a SEP token to divide English prompt from SQL target
+    sep_id = tokenizer.token_to_id("\n")
+    if sep_id is None: sep_id = 1
 
     def pad_sequence(ids, length):
         if len(ids) > length:
@@ -79,12 +83,20 @@ def generate_dataset():
         schema_ids = [toks[0] if toks else unk_id for toks in schema_tokens_list]
         
         for i, (inp_ids, out_ids) in enumerate(dataset):
-            inp_pad = pad_sequence(inp_ids, seq_len)
-            out_pad = pad_sequence(out_ids, seq_len)
+            # Formulate the sequence: [ENG] + [SEP] + [SQL]
+            combined = inp_ids + [sep_id] + out_ids
+            
+            # X is the causal prefix
+            x_seq = combined[:-1]
+            # Y is the prediction target
+            y_seq = combined[1:]
+            
+            x_pad = pad_sequence(x_seq, seq_len)
+            y_pad = pad_sequence(y_seq, seq_len)
             
             for j in range(seq_len):
-                X[i * seq_len + j] = float(inp_pad[j])
-                Y[i * seq_len + j] = float(out_pad[j])
+                X[i * seq_len + j] = float(x_pad[j])
+                Y[i * seq_len + j] = float(y_pad[j])
                 
             for j in range(schema_size):
                 Schema[i * schema_size + j] = float(schema_ids[j])

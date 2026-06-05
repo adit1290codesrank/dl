@@ -64,18 +64,41 @@ int main()
             std::getline(std::cin, query);
             if(query.empty() || query == "exit") break;
             
-            std::vector<int> ids = tokenizer.encode(query, seq_len);
-            std::vector<float> X(seq_len);
-            for(int i = 0; i < seq_len; ++i) X[i] = (float)ids[i];
+            std::vector<int> base_ids = tokenizer.encode(query, seq_len);
             
-            Tensor dX = Tensor::upload(X, {1, seq_len});
-            Tensor dS = Tensor::upload(Schema, {1, schema_size});
+            // Find where padding starts
+            int pad_idx = 0;
+            for(; pad_idx < seq_len; ++pad_idx) {
+                if(base_ids[pad_idx] == 0) break; // 0 is PAD
+            }
             
-            Tensor pred = model.forward(dX, dS);
-            std::vector<float> out_probs = pred.download();
+            // Add SEP token to denote end of English prompt
+            int sep_id = 1;
+            std::vector<int> sep_tok = tokenizer.encode("\n", 1);
+            if(!sep_tok.empty() && sep_tok[0] != 0) sep_id = sep_tok[0];
             
+            if(pad_idx < seq_len) {
+                base_ids[pad_idx] = sep_id;
+                pad_idx++;
+            }
+            
+            std::cout << "SQL  > ";
             std::vector<int> out_ids;
-            for(int t = 0; t < seq_len; ++t) {
+            
+            // Autoregressive Generation Loop
+            for(int step = 0; step < seq_len - pad_idx; ++step) {
+                int current_len = pad_idx + step;
+                
+                std::vector<float> X(seq_len, 0.0f);
+                for(int i = 0; i < current_len; ++i) X[i] = (float)base_ids[i];
+                
+                Tensor dX = Tensor::upload(X, {1, seq_len});
+                Tensor dS = Tensor::upload(Schema, {1, schema_size});
+                
+                Tensor pred = model.forward(dX, dS);
+                std::vector<float> out_probs = pred.download();
+                
+                int t = current_len - 1; // Predict next token based on the last token's output
                 int best_idx = 0;
                 float best_prob = -1.0f;
                 for(int v = 0; v < vocab_size; ++v) {
@@ -85,11 +108,19 @@ int main()
                         best_idx = v;
                     }
                 }
+                
                 out_ids.push_back(best_idx);
+                if(current_len < seq_len) {
+                    base_ids[current_len] = best_idx;
+                }
+                
+                // If it predicts padding, generation is finished
+                if(best_idx == 0) break;
             }
             
             std::string sql_out = tokenizer.decode(out_ids);
-            // Quick cleanup of typical BPE spacing artifacts for presentation
+            
+            // Clean up BPE artifacts
             std::string clean_sql;
             for(size_t i=0; i<sql_out.length(); i++) {
                 if(i > 0 && sql_out[i] == '#' && sql_out[i-1] == '#') continue;
@@ -100,7 +131,7 @@ int main()
                 clean_sql += sql_out[i];
             }
             
-            std::cout << "SQL  > " << clean_sql << std::endl;
+            std::cout << clean_sql << std::endl;
         }
 
     } catch (const std::exception& e) {

@@ -51,8 +51,8 @@ int main()
 
         std::cout << "Starting Actual Backpropagation Loop..." << std::endl;
         
-        // Train for 500 epochs with Cosine Annealing to fully learn the massive dataset
-        model.fit(X_train, Schema_train, Y_train, n_train, seq_len, schema_size, vocab_size, 500, 8, 2e-4f);
+        // Train for 200 epochs with Cosine Annealing to fully learn the massive dataset
+        model.fit(X_train, Schema_train, Y_train, n_train, seq_len, schema_size, vocab_size, 200, 8, 2e-4f);
 
         std::cout << "Saving weights to weights/schema_rag.bin" << std::endl;
         model.save("weights/schema_rag.bin");

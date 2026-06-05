@@ -31,8 +31,8 @@ class SchemaRAGNet
         SchemaRAGNet(int vocab_size, int max_seq_len, int dimension, int heads, int depth)
             : vocab_size(vocab_size), max_seq_len(max_seq_len), dimension(dimension), heads(heads), depth(depth)
         {
-            query_encoder = new TextEncoder(vocab_size, max_seq_len, dimension, heads, depth);
-            schema_encoder = new TextEncoder(vocab_size, max_seq_len, dimension, heads, depth);
+            query_encoder = new TextEncoder(vocab_size, max_seq_len, dimension, heads, depth, true); // Decoder (Causal)
+            schema_encoder = new TextEncoder(vocab_size, max_seq_len, dimension, heads, depth, false); // Encoder (Bidirectional)
             pointer_layer = new PointerAttention(dimension, heads);
             vocab_proj = new Dense(dimension, vocab_size);
             sm = new Softmax();
