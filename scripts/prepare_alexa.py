@@ -1,162 +1,125 @@
-import os
-import numpy as np
-import struct
-import random
-import re
-from collections import Counter
-from datasets import load_dataset
+import math
 
-def augment(sentence, n=3):
-    """Generate n augmented versions of a sentence"""
-    words = sentence.split()
-    augmented = []
+def generate_segmented_mandala(filename="puzzle_grid_segmented.svg"):
+    width, height = 800, 800
+    cx, cy = width / 2, height / 2
     
-    for _ in range(n):
-        new_words = words.copy()
-        r = random.random()
+    sectors = 10
+    angle_step = 360 / sectors
+    
+    # Radii spacing 2r, 3r, 4r, 5r, 6r, 7r. Let r=50.
+    r_unit = 50
+    radii = [r_unit * i for i in range(2, 8)]
+    r_inner = radii[0]   # 100
+    r_outer = radii[-1]  # 350
+    
+    # 90 degrees total twist over 5 rings ensures crossings align perfectly
+    twist_angle = math.radians(90)
+    
+    stroke_color = "#1a1a2e"
+    stroke_width = "3.5"
+    
+    svg = [
+        f'<svg width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">',
+        f'<rect width="100%" height="100%" fill="#d3d3d3" />',
+    ]
+
+    # 1. Draw segmented concentric circles
+    # We break each circle into 20 arcs (every 18 degrees) so every intersection is a split point.
+    for r in radii[1:-1]: 
+        for j in range(20):
+            start_angle = math.radians(j * 18 - 90)
+            end_angle = math.radians((j + 1) * 18 - 90)
+            
+            x1 = cx + r * math.cos(start_angle)
+            y1 = cy + r * math.sin(start_angle)
+            x2 = cx + r * math.cos(end_angle)
+            y2 = cy + r * math.sin(end_angle)
+            
+            # SVG Arc command: A rx ry x-axis-rotation large-arc-flag sweep-flag x y
+            path_str = f'M {x1:.3f} {y1:.3f} A {r} {r} 0 0 1 {x2:.3f} {y2:.3f}'
+            svg.append(f'<path d="{path_str}" stroke="{stroke_color}" stroke-width="{stroke_width}" fill="none" stroke-linecap="round" />')
+
+    # 2. Draw segmented spiral petals
+    num_segments = 5
+    steps_per_segment = 30 # high res for smooth curves within the chunk
+    
+    for i in range(sectors):
+        base_angle = math.radians(i * angle_step - 90)
         
-        if r < 0.33 and len(new_words) > 3:
-            # Random deletion: drop a non-key word
-            idx = random.randint(1, len(new_words)-2)
-            new_words.pop(idx)
+        # Break the petal side into 5 distinct sub-paths
+        for seg in range(num_segments):
+            # t goes from 0 to 1 over the whole petal. 
+            # We calculate the start and end t for this specific chunk.
+            t_start = seg / num_segments
+            t_end = (seg + 1) / num_segments
             
-        elif r < 0.66 and len(new_words) > 2:
-            # Random swap: swap two adjacent words
-            idx = random.randint(0, len(new_words)-2)
-            new_words[idx], new_words[idx+1] = new_words[idx+1], new_words[idx]
+            pts_cw = []
+            pts_ccw = []
             
+            for step in range(steps_per_segment + 1):
+                # Interpolate t within this specific segment
+                t = t_start + (t_end - t_start) * (step / steps_per_segment)
+                r = r_outer - t * (r_outer - r_inner)
+                
+                angle_cw = base_angle + (t * twist_angle)
+                angle_ccw = base_angle - (t * twist_angle)
+                
+                x_cw, y_cw = cx + r * math.cos(angle_cw), cy + r * math.sin(angle_cw)
+                x_ccw, y_ccw = cx + r * math.cos(angle_ccw), cy + r * math.sin(angle_ccw)
+                
+                pts_cw.append(f"{x_cw:.3f},{y_cw:.3f}")
+                pts_ccw.append(f"{x_ccw:.3f},{y_ccw:.3f}")
+                
+            # Render the clockwise segment
+            svg.append(f'<polyline points="{" ".join(pts_cw)}" stroke="{stroke_color}" stroke-width="{stroke_width}" fill="none" stroke-linecap="round"/>')
+            # Render the counter-clockwise segment
+            svg.append(f'<polyline points="{" ".join(pts_ccw)}" stroke="{stroke_color}" stroke-width="{stroke_width}" fill="none" stroke-linecap="round"/>')
+
+    # 3. Draw innermost grey circle
+    svg.append(f'<circle cx="{cx}" cy="{cy}" r="{r_inner}" fill="#666666" stroke="{stroke_color}" stroke-width="{stroke_width}" />')
+
+    # 4. Input Data Arrays (Outer to Inner)
+    arrays = [
+        [7, 4, 3, 2, 3, 4, 7, 4, 7, 4], # Outer layer (10 digits)
+        [1, 2, 0, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0], # Layer 3
+        [0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1], # Layer 2
+        [5, 0, 5, 0, 5, 0, 5, 0, 5, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0], # Layer 1
+        [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 0, 0]  # Inner layer (20 digits)
+    ]
+    
+    def add_text(r_text, angle_deg, text_val):
+        if str(text_val) == "0": return # Skip 0
+        angle_rad = math.radians(angle_deg)
+        tx = cx + r_text * math.cos(angle_rad)
+        ty = cy + r_text * math.sin(angle_rad)
+        svg.append(
+            f'<text x="{tx:.3f}" y="{ty:.3f}" '
+            f'font-family="Arial, sans-serif" font-size="22" font-weight="bold" '
+            f'fill="red" text-anchor="middle" dominant-baseline="central">{text_val}</text>'
+        )
+
+    # 5. Place numbers perfectly centered inside the bounds
+    for layer_idx, data in enumerate(arrays):
+        layer_num = 4 - layer_idx 
+        
+        if layer_num == 4:
+            r_text = radii[4] + (radii[5] - radii[4]) * 0.35
+            for k, val in enumerate(data):
+                angle = k * 36 - 90
+                add_text(r_text, angle, val)
         else:
-            # Random insertion of a filler word
-            fillers = ["please", "can you", "just", "quickly", "hey", "now"]
-            new_words.insert(random.randint(0,len(new_words)), random.choice(fillers))
+            r_text = (radii[layer_num] + radii[layer_num+1]) / 2
+            for k, val in enumerate(data):
+                angle = k * 18 - 90
+                add_text(r_text, angle, val)
+
+    svg.append('</svg>')
+    
+    with open(filename, 'w') as f:
+        f.write("\n".join(svg))
         
-        augmented.append(" ".join(new_words))
-    
-    return augmented
-
-def tokenize(text):
-    return re.findall(r'\b\w+\b', text.lower())
-
-def main():
-    print("Loading FULL CLINC150 dataset from HuggingFace...")
-    dataset = load_dataset("DeepPavlov/clinc_oos", "plus")
-    features = dataset['train'].features
-    
-    # DeepPavlov/clinc_oos uses 'label' (int) and 'label_text' (string) instead of a ClassLabel
-    if 'label' in features and 'label_text' in features:
-        # Extract the mapping deterministically by iterating the dataset
-        intent_map = {}
-        for item in dataset['train']:
-            intent_map[item['label']] = item['label_text']
-            if len(intent_map) == 150: # Optimization: stop early once all 150 are found
-                break
-        
-        # Sort by integer ID to ensure deterministic ordering
-        intent_names = [intent_map[i] for i in sorted(intent_map.keys())]
-        label_key = 'label'
-    else:
-        raise ValueError(f"Expected 'label' and 'label_text'. Available features: {list(features.keys())}")
-
-    target_intents = intent_names
-
-    target_ids = list(range(len(intent_names)))
-
-    print("Building custom Corpus Vocabulary...")
-    counter = Counter()
-    train_data = []
-    val_data = []
-
-    # Extract target data and build vocab
-    for item in dataset['train']:
-        if item[label_key] in target_ids:
-            train_data.append((item['text'], target_ids.index(item[label_key])))
-            counter.update(tokenize(item['text']))
-
-    for item in dataset['validation']:
-        if item[label_key] in target_ids:
-            val_data.append((item['text'], target_ids.index(item[label_key])))
-
-    # Augment training data (3x)
-    print(f"Extracted {len(train_data)} training examples.")
-    augmented_train = []
-    for text, label in train_data:
-        augmented_train.append((text, label))
-        for aug_text in augment(text, n=3):
-            augmented_train.append((aug_text, label))
-            counter.update(tokenize(aug_text))
-    
-    train_data = augmented_train
-    print(f"Augmented train size: {len(train_data)}")
-
-    # Keep tokens seen >= 1 times (include everything to reduce UNK hits)
-    MIN_FREQ = 1
-    vocab = ["[PAD]", "[UNK]"]
-    vocab += [word for word, count in counter.most_common() if count >= MIN_FREQ]
-    
-    vocab_size = len(vocab)
-    print(f"Custom Vocab Size: {vocab_size} (down from 30,522!)")
-
-    word_to_id = {word: i for i, word in enumerate(vocab)}
-    PAD_ID = word_to_id["[PAD]"]
-    UNK_ID = word_to_id["[UNK]"]
-    max_seq_len = 32
-
-    def encode(data):
-        tokens_list = []
-        labels_list = []
-        for text, label_idx in data:
-            words = tokenize(text)
-            ids = [word_to_id.get(w, UNK_ID) for w in words]
-            # Pad or truncate
-            if len(ids) > max_seq_len:
-                ids = ids[:max_seq_len]
-            else:
-                ids += [PAD_ID] * (max_seq_len - len(ids))
-            
-            tokens_list.append(ids)
-            
-            label = [0.0] * len(target_intents)
-            label[label_idx] = 1.0
-            labels_list.append(label)
-            
-        return np.array(tokens_list, dtype=np.float32), np.array(labels_list, dtype=np.float32)
-
-    print("Encoding sets with custom vocab...")
-    train_tokens, train_labels = encode(train_data)
-    test_tokens, test_labels = encode(val_data)
-
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    data_dir = os.path.join(project_root, "data")
-    os.makedirs(data_dir, exist_ok=True)
-    output_file = os.path.join(data_dir, "alexa.bin")
-    
-    print(f"Writing packed binary data to {output_file}...")
-    with open(output_file, 'wb') as f:
-        f.write(struct.pack('i', len(train_tokens)))
-        f.write(struct.pack('i', len(test_tokens)))
-        f.write(struct.pack('i', max_seq_len))
-        f.write(struct.pack('i', vocab_size))
-        f.write(struct.pack('i', len(target_intents)))
-        
-        f.write(train_tokens.tobytes())
-        f.write(train_labels.tobytes())
-        f.write(test_tokens.tobytes())
-        f.write(test_labels.tobytes())
-
-    print(f"Successfully created {output_file}!")
-
-    # Export vocab and intents for the C++ interactive CLI
-    vocab_file = os.path.join(data_dir, "vocab.txt")
-    with open(vocab_file, 'w', encoding='utf-8') as f:
-        for w in vocab:
-            f.write(f"{w}\n")
-            
-    intents_file = os.path.join(data_dir, "intents.txt")
-    with open(intents_file, 'w', encoding='utf-8') as f:
-        for name in target_intents:
-            f.write(f"{name}\n")
-            
-    print(f"Exported vocab.txt and intents.txt for interactive CLI.")
+    print(f"Generated segmented SVG: {filename}")
 
 if __name__ == "__main__":
-    main()
+    generate_segmented_mandala()
