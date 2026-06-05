@@ -90,8 +90,7 @@ int main()
         int depth = 4; 
 
         std::cout << "Initializing Architecture & Loading Weights..." << std::endl;
-        int max_len = std::max(seq_len, schema_size);
-        SchemaRAGNet model(vocab_size, max_len, dim, heads, depth);
+        SchemaRAGNet model(vocab_size, seq_len, dim, heads, depth);
         
         // Disable dropout and load weights
         model.set_mode(false);
