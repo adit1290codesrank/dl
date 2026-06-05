@@ -51,8 +51,8 @@ int main()
 
         std::cout << "Starting Actual Backpropagation Loop..." << std::endl;
         
-        // Train for 20 epochs with batch size 4
-        model.fit(X_train, Schema_train, Y_train, n_train, seq_len, schema_size, vocab_size, 20, 4, 1e-4f);
+        // Train for 200 epochs to let the Transformer actually learn the mappings
+        model.fit(X_train, Schema_train, Y_train, n_train, seq_len, schema_size, vocab_size, 200, 4, 1e-3f);
 
         std::cout << "Saving weights to weights/schema_rag.bin" << std::endl;
         model.save("weights/schema_rag.bin");
