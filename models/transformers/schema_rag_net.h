@@ -15,8 +15,8 @@ extern "C" void average_heads_cuda(const float* attn, float* averaged, int N, in
 extern "C" void broadcast_heads_cuda(const float* d_averaged, float* d_attn, int N, int H, int T_q, int T_k);
 extern "C" void pointer_blend_forward_cuda(const float* p_vocab, const float* p_copy, const float* p_gen, const float* schema_ids, float* p_final, int N, int T_q, int vocab_size, int T_k);
 extern "C" void pointer_blend_backward_cuda(const float* d_final, const float* p_vocab, const float* p_copy, const float* p_gen, const float* schema_ids, float* d_vocab, float* d_copy, float* d_pgen, int N, int T_q, int vocab_size, int T_k);
-extern "C" void sigmoid_inplace_cuda(float* data, int size);
-extern "C" void sigmoid_backward_inplace_cuda(float* d_out, const float* out, int size);
+void sigmoid_inplace_cuda(float* data, int size);
+void sigmoid_backward_inplace_cuda(float* d_out, const float* out, int size);
 
 // SchemaRAGNet implements the Dual-Encoder Architecture with Pointer-Generator Decoder
 class SchemaRAGNet

@@ -1301,26 +1301,6 @@ void mean_pool_backward_cuda(const float* pool,float* seq,int batch,int seq_len,
 // Pointer-Generator Kernels
 // -------------------------------------------------------------------------
 
-extern "C" void sigmoid_inplace_cuda(float* data, int size) {
-    int blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    sigmoid_forward_kernel<<<blocks, BLOCK_SIZE>>>(data, size);
-    cudaDeviceSynchronize();
-}
-
-__global__ void sigmoid_backward_inplace_kernel(float* d_out, const float* out, int size) {
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index < size) {
-        float s = out[index];
-        d_out[index] = d_out[index] * s * (1.0f - s);
-    }
-}
-
-extern "C" void sigmoid_backward_inplace_cuda(float* d_out, const float* out, int size) {
-    int blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    sigmoid_backward_inplace_kernel<<<blocks, BLOCK_SIZE>>>(d_out, out, size);
-    cudaDeviceSynchronize();
-}
-
 __global__ void average_heads_kernel(const float* attn, float* averaged, int N, int H, int T_q, int T_k) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int total = N * T_q * T_k;
