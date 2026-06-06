@@ -62,7 +62,7 @@ def generate_dataset():
         
     schema_tokens_list = [tokenizer.encode(desc).ids for desc in schema_elements]
     
-    n_train = int(len(tokenized_samples) * 0.9)
+    n_train = int(len(tokenized_samples) * 0.8)
     n_val = len(tokenized_samples) - n_train
     seq_len = 256 # Increased to fit both English and SQL
     schema_size = len(schema_elements)
