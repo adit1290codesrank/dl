@@ -150,8 +150,8 @@ for _ in range(1000):
     d1_sql, d1_eng = random.choice(values["date"]), ""
     d2_sql, d2_eng = random.choice(values["date"]), ""
     while d1_sql == d2_sql or d1_sql == "GETDATE()" or d2_sql == "GETDATE()":
-        d1_sql, _ = random.choice(values["date"])
-        d2_sql, _ = random.choice(values["date"])
+        d1_sql = random.choice(values["date"])
+        d2_sql = random.choice(values["date"])
     d1_eng, d2_eng = d1_sql.replace("'", ""), d2_sql.replace("'", "")
     
     prefix = generate_prefix()
