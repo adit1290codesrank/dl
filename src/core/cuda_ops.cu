@@ -1295,6 +1295,7 @@ void mean_pool_backward_cuda(const float* pool,float* seq,int batch,int seq_len,
     int total=batch*seq_len*dim;
     int blocks=(total+BLOCK_SIZE-1)/BLOCK_SIZE;
     mean_pool_backward_kernel<<<blocks,BLOCK_SIZE>>>(pool,seq,batch,seq_len,dim);
+}
 
 // -------------------------------------------------------------------------
 // Pointer-Generator Kernels
