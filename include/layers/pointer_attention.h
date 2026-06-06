@@ -45,9 +45,9 @@ class PointerAttention : public Layer
         // standard forward is overridden but we'll use a specific dual-forward
         Tensor forward(const Tensor& input) override;
         Tensor backward(const Tensor& grad, float lr) override;
-
+        Tensor backward_ext(const Tensor& grad, float lr, const Tensor* d_attn_ext);
+        Tensor get_schema_grad() const { return cached_dSchema; }
         void set_k_frozen(const Tensor& kf) { K_frozen = kf; }
-        const Tensor& get_schema_grad() const { return cached_dSchema; }
 
         // Dual forward taking Query and Schema
         // returns {context, attention_weights}

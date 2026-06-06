@@ -1295,4 +1295,129 @@ void mean_pool_backward_cuda(const float* pool,float* seq,int batch,int seq_len,
     int total=batch*seq_len*dim;
     int blocks=(total+BLOCK_SIZE-1)/BLOCK_SIZE;
     mean_pool_backward_kernel<<<blocks,BLOCK_SIZE>>>(pool,seq,batch,seq_len,dim);
+
+// -------------------------------------------------------------------------
+// Pointer-Generator Kernels
+// -------------------------------------------------------------------------
+
+__global__ void average_heads_kernel(const float* attn, float* averaged, int N, int H, int T_q, int T_k) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total = N * T_q * T_k;
+    if (idx < total) {
+        int n = idx / (T_q * T_k);
+        int rem = idx % (T_q * T_k);
+        int tq = rem / T_k;
+        int tk = rem % T_k;
+        
+        float sum = 0.0f;
+        for (int h = 0; h < H; ++h) {
+            int in_idx = ((n * H + h) * T_q + tq) * T_k + tk;
+            sum += attn[in_idx];
+        }
+        averaged[idx] = sum / H;
+    }
+}
+
+extern "C" void average_heads_cuda(const float* attn, float* averaged, int N, int H, int T_q, int T_k) {
+    int total = N * T_q * T_k;
+    int numBlocks = (total + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    average_heads_kernel<<<numBlocks, BLOCK_SIZE>>>(attn, averaged, N, H, T_q, T_k);
+    cudaDeviceSynchronize();
+}
+
+__global__ void broadcast_heads_kernel(const float* d_averaged, float* d_attn, int N, int H, int T_q, int T_k) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total = N * H * T_q * T_k;
+    if (idx < total) {
+        int n = idx / (H * T_q * T_k);
+        int rem = idx % (H * T_q * T_k);
+        int h = rem / (T_q * T_k);
+        int rem2 = rem % (T_q * T_k);
+        int tq = rem2 / T_k;
+        int tk = rem2 % T_k;
+        
+        int out_idx = (n * T_q + tq) * T_k + tk;
+        d_attn[idx] = d_averaged[out_idx] / H;
+    }
+}
+
+extern "C" void broadcast_heads_cuda(const float* d_averaged, float* d_attn, int N, int H, int T_q, int T_k) {
+    int total = N * H * T_q * T_k;
+    int numBlocks = (total + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    broadcast_heads_kernel<<<numBlocks, BLOCK_SIZE>>>(d_averaged, d_attn, N, H, T_q, T_k);
+    cudaDeviceSynchronize();
+}
+
+__global__ void pointer_blend_forward_kernel(const float* p_vocab, const float* p_copy, const float* p_gen, const float* schema_ids, float* p_final, int N, int T_q, int vocab_size, int T_k) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total = N * T_q * vocab_size;
+    if (idx < total) {
+        int n = idx / (T_q * vocab_size);
+        int rem = idx % (T_q * vocab_size);
+        int tq = rem / vocab_size;
+        int v_id = rem % vocab_size;
+        
+        float gen_prob = p_gen[n * T_q + tq];
+        float copy_prob = 0.0f;
+        
+        // Sum probabilities from all schema elements that map to this vocab ID
+        for (int k = 0; k < T_k; ++k) {
+            int schema_vocab_id = (int)schema_ids[n * T_k + k];
+            if (schema_vocab_id == v_id) {
+                copy_prob += p_copy[(n * T_q + tq) * T_k + k];
+            }
+        }
+        
+        p_final[idx] = gen_prob * p_vocab[idx] + (1.0f - gen_prob) * copy_prob;
+    }
+}
+
+extern "C" void pointer_blend_forward_cuda(const float* p_vocab, const float* p_copy, const float* p_gen, const float* schema_ids, float* p_final, int N, int T_q, int vocab_size, int T_k) {
+    int total = N * T_q * vocab_size;
+    int numBlocks = (total + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    pointer_blend_forward_kernel<<<numBlocks, BLOCK_SIZE>>>(p_vocab, p_copy, p_gen, schema_ids, p_final, N, T_q, vocab_size, T_k);
+    cudaDeviceSynchronize();
+}
+
+__global__ void pointer_blend_backward_kernel(const float* d_final, const float* p_vocab, const float* p_copy, const float* p_gen, const float* schema_ids, float* d_vocab, float* d_copy, float* d_pgen, int N, int T_q, int vocab_size, int T_k) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total = N * T_q;
+    if (idx < total) {
+        int n = idx / T_q;
+        int tq = idx % T_q;
+        
+        float gen_prob = p_gen[idx];
+        float grad_pgen = 0.0f;
+        
+        // 1. Gradients w.r.t p_vocab
+        for (int v = 0; v < vocab_size; ++v) {
+            int v_idx = idx * vocab_size + v;
+            float grad_out = d_final[v_idx];
+            d_vocab[v_idx] = grad_out * gen_prob;
+            
+            // accumulation for dp_gen
+            float copy_prob_v = 0.0f;
+            for (int k = 0; k < T_k; ++k) {
+                if ((int)schema_ids[n * T_k + k] == v) {
+                    copy_prob_v += p_copy[idx * T_k + k];
+                }
+            }
+            grad_pgen += grad_out * (p_vocab[v_idx] - copy_prob_v);
+        }
+        d_pgen[idx] = grad_pgen;
+        
+        // 2. Gradients w.r.t p_copy
+        for (int k = 0; k < T_k; ++k) {
+            int v_id = (int)schema_ids[n * T_k + k];
+            int v_idx = idx * vocab_size + v_id;
+            d_copy[idx * T_k + k] = d_final[v_idx] * (1.0f - gen_prob);
+        }
+    }
+}
+
+extern "C" void pointer_blend_backward_cuda(const float* d_final, const float* p_vocab, const float* p_copy, const float* p_gen, const float* schema_ids, float* d_vocab, float* d_copy, float* d_pgen, int N, int T_q, int vocab_size, int T_k) {
+    int total = N * T_q;
+    int numBlocks = (total + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    pointer_blend_backward_kernel<<<numBlocks, BLOCK_SIZE>>>(d_final, p_vocab, p_copy, p_gen, schema_ids, d_vocab, d_copy, d_pgen, N, T_q, vocab_size, T_k);
+    cudaDeviceSynchronize();
 }

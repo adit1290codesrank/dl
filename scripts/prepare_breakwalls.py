@@ -64,7 +64,7 @@ def generate_dataset():
     
     n_train = int(len(tokenized_samples) * 0.9)
     n_val = len(tokenized_samples) - n_train
-    seq_len = 128 # Increased to fit both English and SQL
+    seq_len = 256 # Increased to fit both English and SQL
     schema_size = len(schema_elements)
     
     train_samples = tokenized_samples[:n_train]

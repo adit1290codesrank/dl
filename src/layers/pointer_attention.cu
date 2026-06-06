@@ -273,6 +273,10 @@ std::pair<Tensor, Tensor> PointerAttention::forward_dual(const Tensor& query, co
 }
 
 Tensor PointerAttention::backward(const Tensor& grad, float lr) {
+    return backward_ext(grad, lr, nullptr);
+}
+
+Tensor PointerAttention::backward_ext(const Tensor& grad, float lr, const Tensor* d_attn_ext) {
     t++;
     int D = cached_query.shape.back();
     int N = (cached_query.shape.size() == 3) ? cached_query.shape[0] : 1;
@@ -296,6 +300,10 @@ Tensor PointerAttention::backward(const Tensor& grad, float lr) {
 
     Tensor dAttn(std::vector<int>{N*heads, T_q, T_k});
     batched_matmul_cuda(dContext.data(), false, cachedV.data(), true, dAttn.data(), N*heads, T_q, head_dim, T_k);
+
+    if (d_attn_ext != nullptr) {
+        dAttn = dAttn + *d_attn_ext;
+    }
 
     Tensor dVh(std::vector<int>{N*heads, T_k, head_dim});
     batched_matmul_cuda(cached_attention.data(), true, dContext.data(), false, dVh.data(), N*heads, T_k, T_q, head_dim);

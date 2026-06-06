@@ -11,6 +11,13 @@
 #include <chrono>
 #include <cuda_runtime.h>
 
+extern "C" void average_heads_cuda(const float* attn, float* averaged, int N, int H, int T_q, int T_k);
+extern "C" void broadcast_heads_cuda(const float* d_averaged, float* d_attn, int N, int H, int T_q, int T_k);
+extern "C" void pointer_blend_forward_cuda(const float* p_vocab, const float* p_copy, const float* p_gen, const float* schema_ids, float* p_final, int N, int T_q, int vocab_size, int T_k);
+extern "C" void pointer_blend_backward_cuda(const float* d_final, const float* p_vocab, const float* p_copy, const float* p_gen, const float* schema_ids, float* d_vocab, float* d_copy, float* d_pgen, int N, int T_q, int vocab_size, int T_k);
+extern "C" void sigmoid_inplace_cuda(float* data, int size);
+extern "C" void sigmoid_backward_inplace_cuda(float* d_out, const float* out, int size);
+
 // SchemaRAGNet implements the Dual-Encoder Architecture with Pointer-Generator Decoder
 class SchemaRAGNet
 {
@@ -21,6 +28,12 @@ class SchemaRAGNet
         
         Dense* vocab_proj;
         Softmax* sm;
+        Dense* pgen_proj;
+
+        Tensor cached_P_vocab;
+        Tensor cached_P_copy;
+        Tensor cached_p_gen;
+        Tensor cached_schema_tokens;
 
         int vocab_size;
         int max_seq_len;
@@ -37,6 +50,7 @@ class SchemaRAGNet
             pointer_layer = new PointerAttention(dimension, heads);
             vocab_proj = new Dense(dimension, vocab_size);
             sm = new Softmax();
+            pgen_proj = new Dense(dimension, 1);
         }
 
         ~SchemaRAGNet()
@@ -46,6 +60,7 @@ class SchemaRAGNet
             delete pointer_layer;
             delete vocab_proj;
             delete sm;
+            delete pgen_proj;
         }
 
         void set_k_frozen(const Tensor& kf) {
@@ -58,40 +73,72 @@ class SchemaRAGNet
             
             auto out = pointer_layer->forward_dual(Q_emb, K_emb);
             Tensor context = out.first;
-            // pointer_weights = out.second; // if needed later
+            Tensor ptr_weights = out.second; // [N*heads, T_q, T_k]
             
             // CRITICAL FIX: Add residual connection so gradients can flow directly 
             // into the Query Encoder, bypassing the frozen Schema vectors!
             context = context + Q_emb;
             
-            // Note: pointer scatter logic omitted for backprop simplicity
-            // Standard Seq2Seq Projection
             int batch = context.shape[0];
             int seq = context.shape[1];
+            int T_k = schema_tokens.shape[1];
             
             context.shape = {batch * seq, dimension};
             Tensor logits = vocab_proj->forward(context);
-            context.shape = {batch, seq, dimension};
+            Tensor P_vocab = sm->forward(logits); // [N*seq, vocab_size]
             
-            Tensor final_out = sm->forward(logits);
-            final_out.shape = {batch, seq, vocab_size};
-            return final_out;
+            Tensor pgen_logits = pgen_proj->forward(context);
+            sigmoid_inplace_cuda(pgen_logits.data(), batch * seq);
+            Tensor p_gen = pgen_logits; // [N*seq, 1]
+            
+            Tensor P_copy(std::vector<int>{batch, seq, T_k});
+            average_heads_cuda(ptr_weights.data(), P_copy.data(), batch, heads, seq, T_k);
+            
+            Tensor P_final(std::vector<int>{batch * seq, vocab_size});
+            pointer_blend_forward_cuda(P_vocab.data(), P_copy.data(), p_gen.data(), schema_tokens.data(), P_final.data(), batch, seq, vocab_size, T_k);
+            
+            this->cached_P_vocab = P_vocab;
+            this->cached_P_copy = P_copy;
+            this->cached_p_gen = p_gen;
+            this->cached_schema_tokens = schema_tokens;
+            
+            context.shape = {batch, seq, dimension};
+            P_final.shape = {batch, seq, vocab_size};
+            return P_final;
         }
 
         Tensor backward(const Tensor& dY, float lr)
         {
             int batch = dY.shape[0];
             int seq = dY.shape[1];
+            int T_k = cached_schema_tokens.shape[1];
             
             Tensor flat_dY = dY;
             flat_dY.shape = {batch * seq, vocab_size};
             
-            Tensor d = sm->backward(flat_dY, lr);
+            Tensor dP_vocab(std::vector<int>{batch * seq, vocab_size});
+            Tensor dP_copy(std::vector<int>{batch * seq, T_k});
+            Tensor dp_gen(std::vector<int>{batch * seq, 1});
+            
+            pointer_blend_backward_cuda(flat_dY.data(), cached_P_vocab.data(), cached_P_copy.data(), cached_p_gen.data(), cached_schema_tokens.data(), dP_vocab.data(), dP_copy.data(), dp_gen.data(), batch, seq, vocab_size, T_k);
+            
+            // Backprop P_vocab
+            Tensor d = sm->backward(dP_vocab, lr);
             d = vocab_proj->backward(d, lr);
             
+            // Backprop p_gen
+            sigmoid_backward_inplace_cuda(dp_gen.data(), cached_p_gen.data(), batch * seq);
+            Tensor d_pgen_ctx = pgen_proj->backward(dp_gen, lr);
+            
+            // Combine context gradients
+            d = d + d_pgen_ctx;
             d.shape = {batch, seq, dimension};
             
-            d = pointer_layer->backward(d, lr);
+            // Backprop P_copy (to attention weights)
+            Tensor d_attn(std::vector<int>{batch * heads, seq, T_k});
+            broadcast_heads_cuda(dP_copy.data(), d_attn.data(), batch, heads, seq, T_k);
+            
+            d = pointer_layer->backward_ext(d, lr, &d_attn);
             
             // Backprop into schema encoder so its weights actually get trained
             Tensor dSchema = pointer_layer->get_schema_grad();
@@ -160,7 +207,14 @@ class SchemaRAGNet
                 std::shuffle(idx.begin(), idx.end(), rng);
                 float tot_loss = 0.0f;
                 
-                float current_lr = lr_min + 0.5f * (lr - lr_min) * (1.0f + std::cos(3.1415926535f * (e - 1) / epochs));
+                float current_lr;
+                int warmup_epochs = 10;
+                if (e <= warmup_epochs) {
+                    current_lr = lr * ((float)e / warmup_epochs);
+                } else {
+                    float progress = (float)(e - 1 - warmup_epochs) / (epochs - warmup_epochs);
+                    current_lr = lr_min + 0.5f * (lr - lr_min) * (1.0f + std::cos(3.1415926535f * progress));
+                }
 
                 for (int b = 0; b < nb; ++b)
                 {
