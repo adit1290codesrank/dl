@@ -251,15 +251,16 @@ std::pair<Tensor, Tensor> PointerAttention::forward_dual(const Tensor& query, co
 
     Tensor scores(std::vector<int>{N*heads, T_q, T_k});
     batched_matmul_cuda(Qh.data(), false, Kh.data(), true, scores.data(), N*heads, T_q, head_dim, T_k);
-    
+
+    // Scale first, then mask, so padded slots keep the full -1e9 magnitude.
+    attention_scale_cuda(scores.data(), scale, N*heads*T_q*T_k);
+
     // Apply padding mask if provided
     if (schema_mask.total_elements() > 0) {
         // schema_mask is [N, T_k] (where T_k is schema_size)
         // apply_attention_mask_cuda adds -1e9 to padded elements
         apply_attention_mask_cuda(scores.data(), schema_mask.data(), N, heads, T_q, T_k);
     }
-    
-    attention_scale_cuda(scores.data(), scale, N*heads*T_q*T_k);
 
     Tensor attn(std::vector<int>{N*heads, T_q, T_k});
     cudaMemcpy(attn.data(), scores.data(), N*heads*T_q*T_k * sizeof(float), cudaMemcpyDeviceToDevice);
