@@ -1,5 +1,7 @@
 #include "../../include/layers/pointer_attention.h"
 #include <cmath>
+#include <iostream>
+#include <atomic>
 #include <random>
 #include <stdexcept>
 #include <cuda_runtime.h>
