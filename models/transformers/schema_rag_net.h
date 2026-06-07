@@ -2,6 +2,7 @@
 #include "text_encoder.h"
 #include "../../include/layers/pointer_attention.h"
 #include "../../include/layers/dense.h"
+#include "../../include/layers/softmax.h"
 #include "../../include/core/loss.h"
 #include <iostream>
 #include <random>
@@ -20,6 +21,7 @@ class SchemaRAGNet
         TextEncoder* schema_encoder;
         PointerAttention* pointer_layer;
         Dense* vocab_proj;
+        Softmax* sm;
 
         int vocab_size;
         int max_seq_len;
@@ -35,6 +37,7 @@ class SchemaRAGNet
             schema_encoder = new TextEncoder(vocab_size, max_seq_len, dimension, heads, depth, false); // Encoder (Bidirectional)
             pointer_layer = new PointerAttention(dimension, heads);
             vocab_proj = new Dense(dimension, vocab_size);
+            sm = new Softmax();
         }
 
         ~SchemaRAGNet()
@@ -43,6 +46,7 @@ class SchemaRAGNet
             delete schema_encoder;
             delete pointer_layer;
             delete vocab_proj;
+            delete sm;
         }
 
         void set_k_frozen(const Tensor& kf) {
@@ -64,10 +68,12 @@ class SchemaRAGNet
             
             context.shape = {batch * seq, dimension};
             Tensor logits = vocab_proj->forward(context);
+            Tensor probs = sm->forward(logits);  // Softmax to get probabilities
             
-            // Return RAW logits — CE loss handles softmax internally
-            logits.shape = {batch, seq, vocab_size};
-            return logits;
+            // CE loss needs probabilities: gradient = (prob - target), loss = -target*log(prob)
+            // Softmax::backward() is identity, so no double-counting
+            probs.shape = {batch, seq, vocab_size};
+            return probs;
         }
 
         Tensor backward(const Tensor& dY, float lr)
@@ -78,8 +84,9 @@ class SchemaRAGNet
             Tensor flat_dY = dY;
             flat_dY.shape = {batch * seq, vocab_size};
             
-            // Backprop through vocab_proj only (no softmax layer, no pointer blend)
-            Tensor d = vocab_proj->backward(flat_dY, lr);
+            // sm->backward is identity — the CE gradient (pred-target) already accounts for softmax
+            Tensor d = sm->backward(flat_dY, lr);
+            d = vocab_proj->backward(d, lr);
             d.shape = {batch, seq, dimension};
             
             // Backprop through pointer attention (cross-attention)
