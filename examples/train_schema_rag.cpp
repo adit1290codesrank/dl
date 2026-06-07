@@ -3,6 +3,7 @@
 #include <vector>
 #include <fstream>
 #include <stdexcept>
+#include <string>
 
 void load_breakwalls_dataset(const std::string& path, int& n_train, int& n_val, int& seq_len, int& vocab_size, int& schema_size, int& max_schema_toks,
                              std::vector<float>& X_train, std::vector<float>& Schema_train, std::vector<float>& Y_train,
@@ -44,9 +45,11 @@ void load_breakwalls_dataset(const std::string& path, int& n_train, int& n_val, 
     file.close();
 }
 
-int main()
+int main(int argc, char** argv)
 {
     try {
+        // `train_schema_rag resume` fine-tunes from the best checkpoint with a gentle schedule.
+        bool resume = (argc > 1 && std::string(argv[1]) == "resume");
         int n_train, n_val, seq_len, vocab_size, schema_size, max_schema_toks;
         std::vector<float> X_train, Schema_train, Y_train, X_val, Schema_val, Y_val, schema_vocab_ids;
 
@@ -71,10 +74,22 @@ int main()
         // Copy-head: map each schema slot to its vocab id so attention can be scattered into the vocab distribution.
         model.set_schema_vocab_ids(Tensor::upload(schema_vocab_ids, {schema_size, 1}));
 
+        // Schedule. Fresh run: peak LR 5e-5 (lowered from 1e-4 to stop the peak-LR loss spikes).
+        // Resume: load the best checkpoint and fine-tune gently (cold Adam, so low LR + short warmup).
+        int total_epochs = 500;
+        float peak_lr = 5e-5f;
+        int warmup_override = -1; // -1 => fit() uses epochs/10
+        if (resume) {
+            std::cout << "Resuming from weights/schema_rag.bin (fine-tune mode)..." << std::endl;
+            model.load("weights/schema_rag.bin");
+            total_epochs = 150;
+            peak_lr = 3e-5f;
+            warmup_override = 5;
+        }
+
         std::cout << "Starting Actual Backpropagation Loop..." << std::endl;
 
-        // Train for 500 epochs with Warmup + Cosine Annealing.
-        model.fit(X_train, Schema_train, Y_train, X_val, Schema_val, Y_val, n_train, n_val, seq_len, schema_size, max_schema_toks, vocab_size, 500, 64, 1e-4f);
+        model.fit(X_train, Schema_train, Y_train, X_val, Schema_val, Y_val, n_train, n_val, seq_len, schema_size, max_schema_toks, vocab_size, total_epochs, 64, peak_lr, warmup_override);
 
         // fit() already checkpoints the best-val model to weights/schema_rag.bin each time it improves,
         // so a run can be stopped at any point. Save the final-epoch weights separately (don't clobber best).

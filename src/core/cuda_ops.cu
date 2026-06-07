@@ -1459,7 +1459,13 @@ __global__ void ce_prob_grad_kernel(const float* P_final, const float* targets_i
         int target = (int)targets_idx[row];
         if (target == -100) { dP[idx] = 0.0f; return; }
         float t_v = (col == target) ? (1.0f - eps) + (eps / (float)V) : (eps / (float)V);
-        dP[idx] = -t_v / (P_final[idx] + 1e-7f) / (float)valid_tokens;
+        // The true CE-on-probability gradient -t/P is UNBOUNDED as P_final->0 (a confidently-wrong
+        // token gives ~1e4), and the p_gen/copy branches aren't re-bounded by a softmax Jacobian, so
+        // that spike corrupts the tied embedding and blows up the loss. Floor the denominator and hard
+        // cap the result: leaves normal tokens (P >> 1e-3) untouched, tames the pathological tail.
+        float p = fmaxf(P_final[idx], 1e-3f);
+        float g = -t_v / p / (float)valid_tokens;
+        dP[idx] = fmaxf(-10.0f, fminf(10.0f, g));
     }
 }
 

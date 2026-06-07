@@ -242,7 +242,8 @@ class SchemaRAGNet
 
         void fit(const std::vector<float>& X, const std::vector<float>& Schema, const std::vector<float>& Y,
                  const std::vector<float>& X_val, const std::vector<float>& Schema_val, const std::vector<float>& Y_val,
-                 int n, int n_val, int seq_len, int schema_size, int max_schema_toks, int vocab_size, int epochs, int bs, float lr)
+                 int n, int n_val, int seq_len, int schema_size, int max_schema_toks, int vocab_size, int epochs, int bs, float lr,
+                 int warmup_override = -1)
         {
             set_mode(true);
             int nb = n / bs;
@@ -271,7 +272,8 @@ class SchemaRAGNet
                 float tot_loss = 0.0f;
                 
                 float current_lr;
-                int warmup_epochs = epochs / 10; // 10% of training used for warmup
+                // Default warmup = 10% of training; resume/fine-tune can pass a short override.
+                int warmup_epochs = (warmup_override > 0) ? warmup_override : epochs / 10;
                 if (e <= warmup_epochs) {
                     current_lr = lr * ((float)e / warmup_epochs);
                 } else {
