@@ -11,6 +11,9 @@
 #include <chrono>
 #include <cuda_runtime.h>
 
+void clamp_tensor_cuda(float* data, float min_val, float max_val, int size);
+void calculate_accuracy_cuda(const float* pred, const float* targets_idx, int* top1_out, int* top5_out, int* total_out, int seq_len, int vocab_size, int total_tokens);
+
 // SchemaRAGNet: Dual-Encoder with Cross-Attention into Schema
 // Forward: query_encoder → cross_attn(Q, Schema) → residual → vocab_proj → raw logits
 // The CE loss kernel internally handles softmax+CE combined gradient (pred - target).
@@ -20,6 +23,7 @@ class SchemaRAGNet
         TextEncoder* query_encoder;
         TextEncoder* schema_encoder;
         PointerAttention* pointer_layer;
+        LayerNorm* final_ln;
         Dense* vocab_proj;
         Softmax* sm;
 
@@ -36,6 +40,7 @@ class SchemaRAGNet
             query_encoder = new TextEncoder(vocab_size, max_seq_len, dimension, heads, depth, true);  // Decoder (Causal)
             schema_encoder = new TextEncoder(vocab_size, max_seq_len, dimension, heads, depth, false); // Encoder (Bidirectional)
             pointer_layer = new PointerAttention(dimension, heads);
+            final_ln = new LayerNorm(dimension);
             vocab_proj = new Dense(dimension, vocab_size);
             sm = new Softmax();
         }
@@ -45,6 +50,7 @@ class SchemaRAGNet
             delete query_encoder;
             delete schema_encoder;
             delete pointer_layer;
+            delete final_ln;
             delete vocab_proj;
             delete sm;
         }
@@ -67,6 +73,7 @@ class SchemaRAGNet
             int seq = context.shape[1];
             
             context.shape = {batch * seq, dimension};
+            context = final_ln->forward(context);
             Tensor logits = vocab_proj->forward(context);
             Tensor probs = sm->forward(logits);  // Softmax to get probabilities
             
@@ -78,15 +85,19 @@ class SchemaRAGNet
 
         Tensor backward(const Tensor& dY, float lr)
         {
-            int batch = dY.shape[0];
-            int seq = dY.shape[1];
+        Tensor backward(const Tensor& grad, float lr)
+        {
+            int batch = grad.shape[0];
+            int seq = grad.shape[1];
             
-            Tensor flat_dY = dY;
-            flat_dY.shape = {batch * seq, vocab_size};
-            
-            // sm->backward is identity — the CE gradient (pred-target) already accounts for softmax
-            Tensor d = sm->backward(flat_dY, lr);
-            d = vocab_proj->backward(d, lr);
+            // Backward pass
+            // The combined CE kernel outputs safe gradients. But to be safe against extreme spikes,
+            // we add a global norm/clamp safeguard.
+            clamp_tensor_cuda(const_cast<float*>(grad.data()), -1.0f, 1.0f, grad.total_elements());
+
+            // Vocab proj backward (no softmax backward since loss computed it)
+            Tensor d = vocab_proj->backward(grad, lr);
+            d = final_ln->backward(d, lr);
             d.shape = {batch, seq, dimension};
             
             // Backprop through pointer attention (cross-attention)
@@ -105,7 +116,10 @@ class SchemaRAGNet
         {
             query_encoder->set_mode(train);
             schema_encoder->set_mode(train);
+            pointer_layer->set_mode(train);
+            final_ln->set_mode(train);
             vocab_proj->set_mode(train);
+            sm->set_mode(train);
         }
 
         void save(const std::string& path)
@@ -115,6 +129,9 @@ class SchemaRAGNet
             std::ofstream os(path + "_pointer.bin", std::ios::binary);
             pointer_layer->save(os);
             os.close();
+            std::ofstream os_ln(path + "_ln.bin", std::ios::binary);
+            final_ln->save(os_ln);
+            os_ln.close();
             std::ofstream os_vocab(path + "_vocab.bin", std::ios::binary);
             vocab_proj->save(os_vocab);
             os_vocab.close();
@@ -127,6 +144,11 @@ class SchemaRAGNet
             std::ifstream is(path + "_pointer.bin", std::ios::binary);
             pointer_layer->load(is);
             is.close();
+            std::ifstream is_ln(path + "_ln.bin", std::ios::binary);
+            if(is_ln.is_open()) {
+                final_ln->load(is_ln);
+                is_ln.close();
+            }
             std::ifstream is_vocab(path + "_vocab.bin", std::ios::binary);
             vocab_proj->load(is_vocab);
             is_vocab.close();
@@ -173,8 +195,10 @@ class SchemaRAGNet
                 {
                     int actual_bs = std::min(bs, n - b * bs);
                     std::vector<float> bX(actual_bs * seq_len);
-                    std::vector<float> bY(actual_bs * seq_len * vocab_size, 0.0f);
+                    std::vector<float> bY_idx(actual_bs * seq_len);
                     std::vector<float> bS(actual_bs * schema_size);
+
+                    int valid_tokens = 0;
 
                     for (int i = 0; i < actual_bs; ++i)
                     {
@@ -184,25 +208,25 @@ class SchemaRAGNet
                         
                         for(int t = 0; t < seq_len; ++t) {
                             int token_id = (int)Y[id * seq_len + t];
-                            if(token_id >= 0 && token_id < vocab_size) {
-                                bY[(i * seq_len + t) * vocab_size + token_id] = 1.0f;
-                            }
+                            bY_idx[i * seq_len + t] = (float)token_id;
+                            if (token_id != -100) valid_tokens++;
                         }
                     }
+                    if (valid_tokens == 0) valid_tokens = 1;
 
                     Tensor dX = Tensor::upload(bX, {actual_bs, seq_len});
                     Tensor dS = Tensor::upload(bS, {actual_bs, schema_size});
-                    Tensor dY = Tensor::upload(bY, {actual_bs * seq_len, vocab_size});
+                    Tensor dY = Tensor::upload(bY_idx, {actual_bs * seq_len, 1}); // or {actual_bs, seq_len}
 
                     Tensor pred = forward(dX, dS);
                     
                     // Reshape to flat 2D for loss calculation
                     pred.shape = {actual_bs * seq_len, vocab_size};
                     
-                    Loss::compute_gradient(pred, dY, grad, LossType::CROSS_ENTROPY);
+                    Loss::compute_gradient(pred, dY, grad, valid_tokens, LossType::CROSS_ENTROPY);
                     grad.shape = {actual_bs, seq_len, vocab_size};
                     backward(grad, current_lr);
-                    tot_loss += Loss::compute_loss(pred, dY, loss_val, LossType::CROSS_ENTROPY);
+                    tot_loss += Loss::compute_loss(pred, dY, loss_val, valid_tokens, LossType::CROSS_ENTROPY);
                     
                     pred.shape = {actual_bs, seq_len, vocab_size}; // restore shape
 
@@ -236,66 +260,41 @@ class SchemaRAGNet
                     int actual_bs = std::min(bs, n_val - b * bs);
                     std::vector<float> bX(actual_bs * seq_len);
                     std::vector<float> bS(actual_bs * schema_size);
-                    std::vector<float> bY(actual_bs * seq_len * vocab_size, 0.0f);
 
                     for (int i = 0; i < actual_bs; ++i) {
                         int id = b * bs + i;
                         std::copy(X_val.begin() + id * seq_len, X_val.begin() + (id + 1) * seq_len, bX.begin() + i * seq_len);
                         std::copy(Schema_val.begin() + id * schema_size, Schema_val.begin() + (id + 1) * schema_size, bS.begin() + i * schema_size);
-                        for(int t = 0; t < seq_len; ++t) {
-                            int token_id = (int)Y_val[id * seq_len + t];
-                            if(token_id >= 0 && token_id < vocab_size) {
-                                bY[(i * seq_len + t) * vocab_size + token_id] = 1.0f;
-                            }
-                        }
                     }
 
                     Tensor dX = Tensor::upload(bX, {actual_bs, seq_len});
                     Tensor dS = Tensor::upload(bS, {actual_bs, schema_size});
-                    Tensor dY_val_t = Tensor::upload(bY, {actual_bs * seq_len, vocab_size});
+                    
+                    std::vector<float> bY_idx(actual_bs * seq_len);
+                    int valid_tokens = 0;
+                    for (int i = 0; i < actual_bs; ++i) {
+                        int id = b * bs + i;
+                        for(int t = 0; t < seq_len; ++t) {
+                            int token_id = (int)Y_val[id * seq_len + t];
+                            bY_idx[i * seq_len + t] = (float)token_id;
+                            if (token_id != -100) valid_tokens++;
+                        }
+                    }
+                    if (valid_tokens == 0) valid_tokens = 1;
+                    Tensor dY_idx = Tensor::upload(bY_idx, {actual_bs * seq_len, 1});
                     
                     Tensor pred = forward(dX, dS);
                     pred.shape = {actual_bs * seq_len, vocab_size};
-                    val_loss_sum += Loss::compute_loss(pred, dY_val_t, val_loss_tensor, LossType::CROSS_ENTROPY);
+                    val_loss_sum += Loss::compute_loss(pred, dY_idx, val_loss_tensor, valid_tokens, LossType::CROSS_ENTROPY);
+                    
+                    int b_top1, b_top5, b_total;
+                    calculate_accuracy_cuda(pred.data(), dY_idx.data(), &b_top1, &b_top5, &b_total, seq_len, vocab_size, actual_bs * seq_len);
+                    
+                    top1_correct += b_top1;
+                    top5_correct += b_top5;
+                    total_valid_tokens += b_total;
+
                     pred.shape = {actual_bs, seq_len, vocab_size};
-
-                    std::vector<float> pred_cpu(pred.total_elements());
-                    cudaMemcpy(pred_cpu.data(), pred.data(), pred_cpu.size() * sizeof(float), cudaMemcpyDeviceToHost);
-
-                    for (int i = 0; i < actual_bs; ++i) {
-                        int id = b * bs + i;
-                        for (int t = 0; t < seq_len; ++t) {
-                            int target_token = (int)Y_val[id * seq_len + t];
-                            if (target_token == 0) continue; // Skip padding
-
-                            // Find top-5 tokens
-                            int top5[5] = {-1, -1, -1, -1, -1};
-                            float top5_vals[5] = {-1e9f, -1e9f, -1e9f, -1e9f, -1e9f};
-                            
-                            for (int v = 0; v < vocab_size; ++v) {
-                                float val = pred_cpu[(i * seq_len + t) * vocab_size + v];
-                                // Insert into sorted top-5
-                                for (int k = 0; k < 5; ++k) {
-                                    if (val > top5_vals[k]) {
-                                        // Shift down
-                                        for (int j = 4; j > k; --j) {
-                                            top5[j] = top5[j-1];
-                                            top5_vals[j] = top5_vals[j-1];
-                                        }
-                                        top5[k] = v;
-                                        top5_vals[k] = val;
-                                        break;
-                                    }
-                                }
-                            }
-                            
-                            if (top5[0] == target_token) top1_correct++;
-                            for (int k = 0; k < 5; ++k) {
-                                if (top5[k] == target_token) { top5_correct++; break; }
-                            }
-                            total_valid_tokens++;
-                        }
-                    }
                 }
                 
                 float val_loss = val_loss_sum / nb_val;

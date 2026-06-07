@@ -1,8 +1,10 @@
 #include "../../include/layers/dense.h"
 #include <fstream>
 #include <cmath>
+#include <atomic>
 
 void adam_cuda(Tensor& W,const Tensor& grad,Tensor& m,Tensor& v,float lr,int t,int size,float lamda=0.001f);
+void clip_grad_norm_tensor_cuda(Tensor& grad, float max_norm);
 void sum_rows_cuda(const Tensor& dY, Tensor& db);
 void add_bias_cuda(Tensor& Y, const Tensor& b);
 Tensor matrix_multiply(const Tensor& A,bool transA,const Tensor& B,bool transB);
@@ -46,6 +48,8 @@ Tensor Dense::backward(const Tensor& dY,float learning_rate)
     Tensor db=Tensor::zeros(1,this->output_size);
     sum_rows_cuda(dY,db);
 
+    clip_grad_norm_tensor_cuda(dW, 1.0f);
+    clip_grad_norm_tensor_cuda(db, 1.0f);
     adam_cuda(this->w,dW,this->mw,this->vw,learning_rate,this->t,this->output_size*this->input_size,0.001f);
     adam_cuda(this->b,db,this->mb,this->vb,learning_rate,this->t,this->output_size,0.0f);
 

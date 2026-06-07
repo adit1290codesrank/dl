@@ -1,16 +1,19 @@
 #include "../../include/layers/embedding.h"
 #include <stdexcept>
 #include <random>
+#include <atomic>
 
 void embedding_forward_cuda(const float* X,const float* W,float* Y,int tokens,int dimension,int size);
 void embedding_backward_cuda(const float* X,const float* dY,float* dW,int tokens,int dimension,int size);
 void adam_cuda(Tensor& W,const Tensor& grad,Tensor& m,Tensor& v,float lr,int t,int size,float lamda=0.001f);
+void clip_grad_norm_tensor_cuda(Tensor& grad, float max_norm);
 
 Embedding::Embedding(int size,int dimension):size(size),dimension(dimension)
 {
     this->t=0;
     std::vector<float> h_w(size*dimension);
-    std::mt19937 gen(42);
+    static std::atomic<int> seed_counter(42);
+    std::mt19937 gen(seed_counter++);
 
     float stddev=sqrt(2.0f/dimension);
     std::normal_distribution<float> dist(0.0f,stddev);
@@ -40,6 +43,7 @@ Tensor Embedding::backward(const Tensor& dY, float lr)
     embedding_backward_cuda(cached_input.data(),dY.data(),dw.data(),cached_input.total_elements(),dimension,size);
     
     t++;
+    clip_grad_norm_tensor_cuda(dw, 1.0f);
     adam_cuda(w,dw,mw,vw,lr,t,w.total_elements());
 
     return Tensor();

@@ -143,23 +143,47 @@ Cross Entropy Kernel.
 Error=-1/N*sum(y_*log(y))
 dError/dy=-1/N*(y_/y)
 */
-__global__ void cross_entropy_kernel(const float* y_, const float* y, float* dy,int size,int n,int k,float epsilon)
+__global__ void cross_entropy_kernel(const float* pred, const float* targets_idx, float* dy, int batch_seq, int vocab_size, int valid_tokens, float epsilon)
 {
-    int index=blockIdx.x*blockDim.x+threadIdx.x;
-    if(index<size)
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total_elements = batch_seq * vocab_size;
+    if(idx < total_elements)
     {
-        float target=y[index]*(1.0f-epsilon)+(epsilon/(float)k);
-        dy[index]=(y_[index]-target)/(float)n;
+        int row = idx / vocab_size;
+        int col = idx % vocab_size;
+        int target_token = (int)targets_idx[row];
+        
+        if (target_token == -100) {
+            dy[idx] = 0.0f;
+        } else {
+            float target_val = (col == target_token) ? (1.0f - epsilon) + (epsilon / (float)vocab_size) : (epsilon / (float)vocab_size);
+            dy[idx] = (pred[idx] - target_val) / (float)valid_tokens;
+        }
     }
 }
 
-__global__ void cross_entropy_loss_kernel(const float* y_, const float* y,float* loss, int size, int n,int k, float epsilon)
+__global__ void cross_entropy_loss_kernel(const float* pred, const float* targets_idx, float* loss, int batch_seq, int vocab_size, int valid_tokens, float epsilon)
 {
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index < size)
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < batch_seq)
     {
-        float target = y[index] * (1.0f - epsilon) + (epsilon / (float)k);
-        atomicAdd(loss, -target * logf(y_[index] + 1e-7f) / (float)n);
+        int target_token = (int)targets_idx[idx];
+        if (target_token != -100 && target_token >= 0 && target_token < vocab_size) {
+            float target_val = (1.0f - epsilon) + (epsilon / (float)vocab_size);
+            atomicAdd(loss, -target_val * logf(pred[idx * vocab_size + target_token] + 1e-7f) / (float)valid_tokens);
+            // Technically label smoothing adds terms for all incorrect classes, but for the loss scalar 
+            // the main term is sufficient for monitoring. We will add the smooth terms if needed.
+            // But since epsilon is small, tracking the true class loss is usually fine.
+            // Let's add the smooth terms for correctness:
+            float smooth_target = epsilon / (float)vocab_size;
+            float smooth_loss = 0.0f;
+            for(int v=0; v<vocab_size; ++v) {
+                if (v != target_token) {
+                    smooth_loss += -smooth_target * logf(pred[idx * vocab_size + v] + 1e-7f);
+                }
+            }
+            atomicAdd(loss, smooth_loss / (float)valid_tokens);
+        }
     }
 }
 
@@ -189,7 +213,7 @@ __global__ void adam_kernel(float* w,const float* grad,float* m,float* v,float l
         float g=grad[idx]+(lambda*w[idx]);
         
         // Gradient clipping: clamp per-element gradient to prevent exploding gradients
-        float max_grad = 5.0f;
+        float max_grad = 100.0f; // Relaxed to 100.0f to let Adam naturally normalize gradients
         if(g > max_grad) g = max_grad;
         if(g < -max_grad) g = -max_grad;
         
@@ -203,6 +227,66 @@ __global__ void adam_kernel(float* w,const float* grad,float* m,float* v,float l
         vt=vt/(1.0f-powf(0.999f, t));
         
         w[idx]-=lr*mt/(sqrtf(vt)+1e-8f);
+    }
+}
+
+__global__ void clamp_kernel(float* data, float min_val, float max_val, int size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < size) {
+        if (data[idx] > max_val) data[idx] = max_val;
+        if (data[idx] < min_val) data[idx] = min_val;
+    }
+}
+
+__global__ void calculate_accuracy_kernel(const float* pred, const float* targets_idx, int* top1, int* top5, int* total, int seq_len, int vocab_size, int total_tokens) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < total_tokens) {
+        int target_token = (int)targets_idx[idx];
+        if (target_token == -100) return; // Ignore padding and prompts
+
+        atomicAdd(total, 1);
+
+        float top5_vals[5] = {-1e9f, -1e9f, -1e9f, -1e9f, -1e9f};
+        int top5_idx[5] = {-1, -1, -1, -1, -1};
+
+        int row_start = idx * vocab_size;
+        for (int v = 0; v < vocab_size; ++v) {
+            float val = pred[row_start + v];
+            for (int k = 0; k < 5; ++k) {
+                if (val > top5_vals[k]) {
+                    for (int j = 4; j > k; --j) {
+                        top5_idx[j] = top5_idx[j-1];
+                        top5_vals[j] = top5_vals[j-1];
+                    }
+                    top5_idx[k] = v;
+                    top5_vals[k] = val;
+                    break;
+                }
+            }
+        }
+
+        if (top5_idx[0] == target_token) atomicAdd(top1, 1);
+        for (int k = 0; k < 5; ++k) {
+            if (top5_idx[k] == target_token) {
+                atomicAdd(top5, 1);
+                break;
+            }
+        }
+    }
+}
+
+__global__ void sum_squares_kernel(const float* grad, float* sum_sq, int size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < size) {
+        float val = grad[idx];
+        atomicAdd(sum_sq, val * val);
+    }
+}
+
+__global__ void scale_tensor_kernel(float* grad, float scale, int size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < size) {
+        grad[idx] *= scale;
     }
 }
 
@@ -1086,10 +1170,71 @@ void gelu_forward_cuda(Tensor& Y)
 
 void gelu_backward_cuda(const Tensor& dY, const Tensor& cached_X, Tensor& dX)
 {
-    int size = dY.rows() * dY.cols();
-    int threads = BLOCK_SIZE;
+    int size = dY.total_elements();
+    int threads = 256;
     int blocks = (size + threads - 1) / threads;
     gelu_backward_kernel<<<blocks, threads>>>(dY.data(), cached_X.data(), dX.data(), size);
+}
+
+void clamp_tensor_cuda(float* data, float min_val, float max_val, int size) {
+    int threads = 256;
+    int blocks = (size + threads - 1) / threads;
+    clamp_kernel<<<blocks, threads>>>(data, min_val, max_val, size);
+    cudaDeviceSynchronize();
+}
+
+void clip_grad_norm_tensor_cuda(Tensor& grad, float max_norm) {
+    int size = grad.total_elements();
+    if (size == 0) return;
+
+    float* d_sum_sq;
+    cudaMalloc(&d_sum_sq, sizeof(float));
+    cudaMemset(d_sum_sq, 0, sizeof(float));
+
+    int threads = 256;
+    int blocks = (size + threads - 1) / threads;
+    sum_squares_kernel<<<blocks, threads>>>(grad.data(), d_sum_sq, size);
+    cudaDeviceSynchronize();
+
+    float h_sum_sq;
+    cudaMemcpy(&h_sum_sq, d_sum_sq, sizeof(float), cudaMemcpyDeviceToHost);
+    cudaFree(d_sum_sq);
+
+    float norm = sqrtf(h_sum_sq);
+    
+    // Non-finite guard: if norm is NaN/Inf, scale to 0 to skip update
+    if (!std::isfinite(norm)) {
+        scale_tensor_kernel<<<blocks, threads>>>(grad.data(), 0.0f, size);
+    } else if (norm > max_norm) {
+        float scale = max_norm / norm;
+        scale_tensor_kernel<<<blocks, threads>>>(grad.data(), scale, size);
+    }
+    cudaDeviceSynchronize();
+}
+
+void calculate_accuracy_cuda(const float* pred, const float* targets_idx, int* top1_out, int* top5_out, int* total_out, int seq_len, int vocab_size, int total_tokens) {
+    int* d_top1;
+    int* d_top5;
+    int* d_total;
+    cudaMalloc(&d_top1, sizeof(int));
+    cudaMalloc(&d_top5, sizeof(int));
+    cudaMalloc(&d_total, sizeof(int));
+    cudaMemset(d_top1, 0, sizeof(int));
+    cudaMemset(d_top5, 0, sizeof(int));
+    cudaMemset(d_total, 0, sizeof(int));
+
+    int threads = 256;
+    int blocks = (total_tokens + threads - 1) / threads;
+    calculate_accuracy_kernel<<<blocks, threads>>>(pred, targets_idx, d_top1, d_top5, d_total, seq_len, vocab_size, total_tokens);
+    cudaDeviceSynchronize();
+
+    cudaMemcpy(top1_out, d_top1, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(top5_out, d_top5, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(total_out, d_total, sizeof(int), cudaMemcpyDeviceToHost);
+
+    cudaFree(d_top1);
+    cudaFree(d_top5);
+    cudaFree(d_total);
 }
 
 void tanh_forward_cuda(Tensor& Y)
@@ -1189,15 +1334,13 @@ void mse_cuda(const Tensor& y_,const Tensor& y,Tensor& dy)
     mse_kernel<<<blocks,threads>>>(y_.data(),y.data(),dy.data(),size);
 }   
 
-void cross_entropy_cuda(const Tensor& y_, const Tensor& y, Tensor& dy)
+void cross_entropy_cuda(const float* pred, const float* targets_idx, float* dy, int batch_seq, int vocab_size, int valid_tokens)
 {
-    int n=y.rows();
-    int k=y.cols();
-    int size=n*k;
-    float epsilon=0.1f;
-    int threads=BLOCK_SIZE;
-    int blocks=(size+threads-1)/threads;
-    cross_entropy_kernel<<<blocks,threads>>>(y_.data(),y.data(),dy.data(),size,n,k,epsilon);
+    int total_elements = batch_seq * vocab_size;
+    int threads = 256;
+    int blocks = (total_elements + threads - 1) / threads;
+    cross_entropy_kernel<<<blocks, threads>>>(pred, targets_idx, dy, batch_seq, vocab_size, valid_tokens, 0.1f);
+    cudaDeviceSynchronize();
 }
 
 float mse_loss_cuda(const Tensor& y_,const Tensor& y,Tensor& loss)

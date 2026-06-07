@@ -68,7 +68,7 @@ int main()
         model.set_k_frozen(Tensor::upload(K_frozen, {schema_size, 2048}));
         
         // Train for 500 epochs with Warmup + Cosine Annealing to ensure full convergence with large batch size
-        model.fit(X_train, Schema_train, Y_train, X_val, Schema_val, Y_val, n_train, n_val, seq_len, schema_size, vocab_size, 500, 256, 2e-4f);
+        model.fit(X_train, Schema_train, Y_train, X_val, Schema_val, Y_val, n_train, n_val, seq_len, schema_size, vocab_size, 500, 64, 1e-4f);
 
         std::cout << "Saving weights to weights/schema_rag.bin" << std::endl;
         model.save("weights/schema_rag.bin");

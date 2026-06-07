@@ -64,7 +64,7 @@ def generate_dataset():
     
     n_train = int(len(tokenized_samples) * 0.8)
     n_val = len(tokenized_samples) - n_train
-    seq_len = 256 # Increased to fit both English and SQL
+    seq_len = 128 # Capped to reduce T^2 attention cost
     schema_size = len(schema_elements)
     
     train_samples = tokenized_samples[:n_train]
@@ -96,8 +96,16 @@ def generate_dataset():
             x_seq = combined[:-1]
             y_seq = combined[1:]
             
+            # Label everything before [SEP] as -100 (ignore)
+            y_labels = [-100] * len(inp_ids) + out_ids
+
             x_pad = pad_sequence(x_seq, seq_len)
-            y_pad = pad_sequence(y_seq, seq_len)
+            
+            # Pad sequence for Y should use -100
+            if len(y_labels) > seq_len:
+                y_pad = y_labels[:seq_len]
+            else:
+                y_pad = y_labels + [-100] * (seq_len - len(y_labels))
             
             for j in range(seq_len):
                 X[i * seq_len + j] = float(x_pad[j])

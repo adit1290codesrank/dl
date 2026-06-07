@@ -8,6 +8,7 @@
 Tensor matrix_multiply(const Tensor& A, bool transA, const Tensor& B, bool transB);
 Tensor matrix_add(const Tensor& A, const Tensor& B);
 void adam_cuda(Tensor& W, const Tensor& grad, Tensor& m, Tensor& v, float lr, int t, int size, float lamda=0.001f);
+void clip_grad_norm_tensor_cuda(Tensor& grad, float max_norm);
 void attention_scale_cuda(float* data, float scale, int size);
 void full_attention_softmax_cuda(float* data, int rows, int cols);
 void full_attention_softmax_backward_cuda(const float* dY, const float* Y, float* dX, int rows, int cols);
@@ -155,7 +156,8 @@ PointerAttention::PointerAttention(int dimension, int heads) : dimension(dimensi
     int head_dim = dimension / heads;
     scale = 1.0f / sqrtf((float)head_dim);
 
-    std::mt19937 gen(42);
+    static std::atomic<int> seed_counter(42);
+    std::mt19937 gen(seed_counter++);
     
     // Standard He initialization for attention projections (fan_in = dimension)
     float stddev_attn = sqrtf(2.0f / dimension);
@@ -324,6 +326,7 @@ Tensor PointerAttention::backward_ext(const Tensor& grad, float lr, const Tensor
     merge_heads_cuda(dKh.data(), dK_total.data(), N, T_k, heads, head_dim);
 
     Tensor dK = Tensor::zeros(N*T_k, D);
+    Tensor dSchema_gate_contribution = Tensor::zeros(N*T_k, D);
     cudaMemset(dw_gate.data(), 0, dw_gate.total_elements() * sizeof(float));
     cudaMemset(dw_proj.data(), 0, dw_proj.total_elements() * sizeof(float));
     
@@ -346,10 +349,8 @@ Tensor PointerAttention::backward_ext(const Tensor& grad, float lr, const Tensor
         // Using matrix_multiply wrappers to get allocated result then memcpy to dw_gate
         Tensor dw_gate_new = matrix_multiply(schema_2d, true, dGate, false);
         cudaMemcpy(dw_gate.data(), dw_gate_new.data(), dw_gate.total_elements() * sizeof(float), cudaMemcpyDeviceToDevice);
-        
-        // dSchema_gate = dGate @ w_gate^T
-        Tensor dSchema_gate = matrix_multiply(dGate, false, w_gate, true);
-        cached_gate = dSchema_gate; // Reuse tensor memory for passing to dInput_k
+        // dSchema_gate_contribution = dGate @ w_gate^T
+        dSchema_gate_contribution = matrix_multiply(dGate, false, w_gate, true);
     } else {
         cudaMemcpy(dK.data(), dK_total.data(), dK_total.total_elements() * sizeof(float), cudaMemcpyDeviceToDevice);
     }
@@ -372,15 +373,18 @@ Tensor PointerAttention::backward_ext(const Tensor& grad, float lr, const Tensor
     Tensor dInput_v = matrix_multiply(dV, false, wV, true);
     
     if (K_frozen.total_elements() > 0) {
-        // Add dSchema_gate (currently cached_gate) to dInput_k
-        std::vector<float> h_in = dInput_k.download();
-        std::vector<float> h_gate = cached_gate.download();
-        for(size_t i=0; i<h_in.size(); ++i) h_in[i] += h_gate[i];
-        cudaMemcpy(dInput_k.data(), h_in.data(), h_in.size() * sizeof(float), cudaMemcpyHostToDevice);
+        // Add dSchema_gate_contribution to dInput_k using GPU directly
+        dInput_k = matrix_add(dInput_k, dSchema_gate_contribution);
     }
-
     // 1. Adam Update
     int wsize = dimension * dimension;
+    clip_grad_norm_tensor_cuda(dwQ, 1.0f);
+    clip_grad_norm_tensor_cuda(dwK, 1.0f);
+    clip_grad_norm_tensor_cuda(dwV, 1.0f);
+    clip_grad_norm_tensor_cuda(dwO, 1.0f);
+    clip_grad_norm_tensor_cuda(dw_gate, 1.0f);
+    clip_grad_norm_tensor_cuda(dw_proj, 1.0f);
+
     adam_cuda(wQ, dwQ, mwq, vwq, lr, t, wsize);
     adam_cuda(wK, dwK, mwk, vwk, lr, t, wsize);
     adam_cuda(wV, dwV, mwv, vwv, lr, t, wsize);

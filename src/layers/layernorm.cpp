@@ -4,6 +4,7 @@
 #include <cuda_runtime.h>
 
 void adam_cuda(Tensor& W,const Tensor& grad,Tensor& m,Tensor& v,float lr,int t,int size,float lamda=0.001f);
+void clip_grad_norm_tensor_cuda(Tensor& grad, float max_norm);
 void layernorm_forward_cuda(const float* X,const float* g,const float* b,float* Y,float* mean,float* var,float* x_hat,int rows,int cols,float eps);
 void layernorm_backward_cuda(const float* dY,const float* x_hat,const float* g,const float* var,float* dX,float* dg,float* db,int rows,int cols,float eps);
 
@@ -58,6 +59,8 @@ Tensor LayerNorm::backward(const Tensor& dY,float lr)
 
     layernorm_backward_cuda(dY_flat.data(),cached_x.data(),g.data(),cached_var.data(),dX.data(),dg.data(),db.data(),rows,cols,eps);
 
+    clip_grad_norm_tensor_cuda(dg, 1.0f);
+    clip_grad_norm_tensor_cuda(db, 1.0f);
     adam_cuda(g,dg,mg,vg,lr,t,dimension,0.0f);
     adam_cuda(b,db,mb,vb,lr,t,dimension,0.0f);
 

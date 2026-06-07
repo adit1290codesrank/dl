@@ -6,6 +6,7 @@
 
 Tensor matrix_multiply(const Tensor& A,bool transA,const Tensor& B,bool transB);
 void adam_cuda(Tensor& W,const Tensor& grad,Tensor& m,Tensor& v,float lr,int t,int size,float lamda=0.001f);
+void clip_grad_norm_tensor_cuda(Tensor& grad, float max_norm);
 
 void attention_scale_cuda(float* data,float scale,int size);
 void attention_softmax_cuda(float* data,int rows,int cols);
@@ -22,7 +23,8 @@ SelfAttention::SelfAttention(int dimension,int heads,bool causal):dimension(dime
     int head_dim=dimension/heads;
     scale=1.0f/sqrtf((float)head_dim);
 
-    std::mt19937 gen(42);
+    static std::atomic<int> seed_counter(42);
+    std::mt19937 gen(seed_counter++);
     float stddev=sqrtf(2.0f/dimension);
     std::normal_distribution<float> dist(0.0f,stddev);
 
@@ -212,6 +214,11 @@ Tensor SelfAttention::backward(const Tensor& dY,float lr)
 
     // Adam updates
     int wsize=dimension*dimension;
+    clip_grad_norm_tensor_cuda(dwQ, 1.0f);
+    clip_grad_norm_tensor_cuda(dwK, 1.0f);
+    clip_grad_norm_tensor_cuda(dwV, 1.0f);
+    clip_grad_norm_tensor_cuda(dwO, 1.0f);
+
     adam_cuda(wQ,dwQ,mwq,vwq,lr,t,wsize);
     adam_cuda(wK,dwK,mwk,vwk,lr,t,wsize);
     adam_cuda(wV,dwV,mwv,vwv,lr,t,wsize);
