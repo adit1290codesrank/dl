@@ -1334,48 +1334,57 @@ void mse_cuda(const Tensor& y_,const Tensor& y,Tensor& dy)
     mse_kernel<<<blocks,threads>>>(y_.data(),y.data(),dy.data(),size);
 }   
 
-// ---- Grouped mean pooling (used to collapse schema sub-tokens into one vector per element) ----
-// in: [num_groups*group_size, dim] contiguous; out: [num_groups, dim] = mean over each group's rows.
-__global__ void mean_pool_groups_kernel(const float* in, float* out, int num_groups, int group_size, int dim)
+// ---- Masked grouped mean pooling (collapse schema sub-tokens into one vector per element) ----
+// in: [num_groups*group_size, dim]; tokens: [num_groups*group_size] token ids; out: [num_groups, dim].
+// Averages over the NON-pad sub-tokens of each group only, so short schema elements aren't diluted
+// by the (learned) pad-row vector. A group with zero real tokens yields 0.
+__global__ void mean_pool_groups_kernel(const float* in, const float* tokens, float* out, int num_groups, int group_size, int dim, float pad_id)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int total = num_groups * dim;
     if (idx < total) {
         int g = idx / dim;
         int d = idx % dim;
-        float s = 0.0f;
-        for (int k = 0; k < group_size; ++k) s += in[(g * group_size + k) * dim + d];
-        out[idx] = s / (float)group_size;
+        float s = 0.0f; int cnt = 0;
+        for (int k = 0; k < group_size; ++k) {
+            if (tokens[g * group_size + k] != pad_id) { s += in[(g * group_size + k) * dim + d]; cnt++; }
+        }
+        out[idx] = (cnt > 0) ? s / (float)cnt : 0.0f;
     }
 }
 
-// Broadcast each group's gradient back across its sub-tokens (divided by group_size).
-__global__ void mean_pool_groups_backward_kernel(const float* dout, float* din, int num_groups, int group_size, int dim)
+// Broadcast each group's gradient back across its NON-pad sub-tokens (divided by the real count);
+// pad sub-tokens get zero gradient (they didn't contribute to the pooled vector).
+__global__ void mean_pool_groups_backward_kernel(const float* dout, const float* tokens, float* din, int num_groups, int group_size, int dim, float pad_id)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int total = num_groups * group_size * dim;
     if (idx < total) {
-        int row = idx / dim;
+        int row = idx / dim;     // = g*group_size + k
         int d = idx % dim;
+        int k = row % group_size;
         int g = row / group_size;
-        din[idx] = dout[g * dim + d] / (float)group_size;
+        if (tokens[g * group_size + k] == pad_id) { din[idx] = 0.0f; return; }
+        int cnt = 0;
+        for (int kk = 0; kk < group_size; ++kk) if (tokens[g * group_size + kk] != pad_id) cnt++;
+        din[idx] = (cnt > 0) ? dout[g * dim + d] / (float)cnt : 0.0f;
     }
 }
 
-void mean_pool_groups_cuda(const float* in, float* out, int num_groups, int group_size, int dim)
+void mean_pool_groups_cuda(const float* in, const float* tokens, float* out, int num_groups, int group_size, int dim, float pad_id)
 {
     int total = num_groups * dim;
     int threads = 256;
     int blocks = (total + threads - 1) / threads;
-    mean_pool_groups_kernel<<<blocks, threads>>>(in, out, num_groups, group_size, dim);
+    mean_pool_groups_kernel<<<blocks, threads>>>(in, tokens, out, num_groups, group_size, dim, pad_id);
 }
 
-void mean_pool_groups_backward_cuda(const float* dout, float* din, int num_groups, int group_size, int dim)
+void mean_pool_groups_backward_cuda(const float* dout, const float* tokens, float* din, int num_groups, int group_size, int dim, float pad_id)
 {
     int total = num_groups * group_size * dim;
     int threads = 256;
     int blocks = (total + threads - 1) / threads;
-    mean_pool_groups_backward_kernel<<<blocks, threads>>>(dout, din, num_groups, group_size, dim);
+    mean_pool_groups_backward_kernel<<<blocks, threads>>>(dout, tokens, din, num_groups, group_size, dim, pad_id);
 }
 
 // ================= Pointer / copy head =================

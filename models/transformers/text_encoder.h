@@ -9,8 +9,8 @@
 #include <fstream>
 #include <iostream>
 
-void mean_pool_groups_cuda(const float* in, float* out, int num_groups, int group_size, int dim);
-void mean_pool_groups_backward_cuda(const float* dout, float* din, int num_groups, int group_size, int dim);
+void mean_pool_groups_cuda(const float* in, const float* tokens, float* out, int num_groups, int group_size, int dim, float pad_id);
+void mean_pool_groups_backward_cuda(const float* dout, const float* tokens, float* din, int num_groups, int group_size, int dim, float pad_id);
 
 /*
 Pure Sequence Encoder for Text.
@@ -37,6 +37,7 @@ class TextEncoder : public Layer
         // State for forward_pooled / backward_pooled
         int cached_pool_groups = 0;
         int cached_pool_gsize = 0;
+        Tensor cached_pool_tokens; // flat [batch, n_elem*sub_toks] token ids, for masked pooling
 
     public:
         Embedding& token_embedding() { return token_emb; }
@@ -99,11 +100,13 @@ class TextEncoder : public Layer
             int gsize = X.shape[2];
 
             Tensor flat_tokens = X.reshape({batch, n_elem * gsize});
+            cached_pool_tokens = flat_tokens;
             Tensor emb = token_emb.forward(flat_tokens);   // [batch, n_elem*gsize, dim]
 
             int num_groups = batch * n_elem;
             Tensor pooled(std::vector<int>{num_groups, dim});
-            mean_pool_groups_cuda(emb.data(), pooled.data(), num_groups, gsize, dim);
+            // pad_id = 0 ([PAD] is special-token 0); pool only over real sub-tokens.
+            mean_pool_groups_cuda(emb.data(), flat_tokens.data(), pooled.data(), num_groups, gsize, dim, 0.0f);
             cached_pool_groups = num_groups;
             cached_pool_gsize = gsize;
 
@@ -128,11 +131,11 @@ class TextEncoder : public Layer
             d = emb_drop.backward(d, lr);
             pos_emb.backward(d, lr);
 
-            // Un-pool: broadcast each element's gradient back across its sub-tokens (/gsize).
+            // Un-pool: broadcast each element's gradient back across its real (non-pad) sub-tokens.
             int num_groups = cached_pool_groups;
             int gsize = cached_pool_gsize;
             Tensor d_unpooled(std::vector<int>{num_groups * gsize, dim});
-            mean_pool_groups_backward_cuda(d.data(), d_unpooled.data(), num_groups, gsize, dim);
+            mean_pool_groups_backward_cuda(d.data(), cached_pool_tokens.data(), d_unpooled.data(), num_groups, gsize, dim, 0.0f);
             token_emb.backward(d_unpooled, lr);
             return Tensor();
         }
