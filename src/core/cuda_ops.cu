@@ -1332,7 +1332,7 @@ __global__ void broadcast_heads_kernel(const float* d_averaged, float* d_attn, i
     if (idx < total) {
         int n = idx / (H * T_q * T_k);
         int rem = idx % (H * T_q * T_k);
-        int h = rem / (T_q * T_k);
+        // int h = rem / (T_q * T_k); // not used directly in out_idx
         int rem2 = rem % (T_q * T_k);
         int tq = rem2 / T_k;
         int tk = rem2 % T_k;
