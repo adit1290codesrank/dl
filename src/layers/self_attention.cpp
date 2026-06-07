@@ -1,6 +1,7 @@
 #include "../../include/layers/self_attention.h"
 #include <cmath>
 #include <random>
+#include <atomic>
 #include <stdexcept>
 #include <cuda_runtime.h>
 
