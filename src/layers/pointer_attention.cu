@@ -42,7 +42,6 @@ void add_gated_k_frozen_cuda(float* K_total, const float* K_learned, const float
     int threads = 256;
     int blocks = (total + threads - 1) / threads;
     add_gated_k_frozen_kernel<<<blocks, threads>>>(K_total, K_learned, K_frozen_proj, gate, N, T_k, heads, head_dim);
-    cudaDeviceSynchronize();
 }
 
 __global__ void backward_gated_k_frozen_kernel(const float* dK_total, const float* K_frozen_proj, const float* gate, 
@@ -77,7 +76,6 @@ void backward_gated_k_frozen_cuda(const float* dK_total, const float* K_frozen_p
     int threads = 256;
     int blocks = (total + threads - 1) / threads;
     backward_gated_k_frozen_kernel<<<blocks, threads>>>(dK_total, K_frozen_proj, gate, dK_learned, dGate, dK_frozen_proj, N, T_k, heads, head_dim);
-    cudaDeviceSynchronize();
 }
 
 __global__ void sigmoid_inplace_kernel(float* x, int size) {
@@ -99,14 +97,12 @@ void sigmoid_inplace_cuda(float* x, int size) {
     int threads = 256;
     int blocks = (size + threads - 1) / threads;
     sigmoid_inplace_kernel<<<blocks, threads>>>(x, size);
-    cudaDeviceSynchronize();
 }
 
 void sigmoid_backward_inplace_cuda(float* dx, const float* x, int size) {
     int threads = 256;
     int blocks = (size + threads - 1) / threads;
     sigmoid_backward_inplace_kernel<<<blocks, threads>>>(dx, x, size);
-    cudaDeviceSynchronize();
 }
 
 // -------------------------------------------------------------------------
@@ -137,12 +133,10 @@ void pointer_scatter_add_cuda(const float* p_vocab, const float* p_schema, const
     int threads = 256;
     int blocks_vocab = (vocab_size + threads - 1) / threads;
     pointer_base_dist_kernel<<<blocks_vocab, threads>>>(p_vocab, p_final, p_gen, vocab_size);
-    cudaDeviceSynchronize();
 
     if(schema_size > 0) {
         int blocks_schema = (schema_size + threads - 1) / threads;
         pointer_scatter_add_kernel<<<blocks_schema, threads>>>(p_schema, schema_vocab_indices, p_final, p_gen, schema_size, vocab_size);
-        cudaDeviceSynchronize();
     }
 }
 

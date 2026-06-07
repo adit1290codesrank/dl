@@ -1334,6 +1334,224 @@ void mse_cuda(const Tensor& y_,const Tensor& y,Tensor& dy)
     mse_kernel<<<blocks,threads>>>(y_.data(),y.data(),dy.data(),size);
 }   
 
+// ---- Grouped mean pooling (used to collapse schema sub-tokens into one vector per element) ----
+// in: [num_groups*group_size, dim] contiguous; out: [num_groups, dim] = mean over each group's rows.
+__global__ void mean_pool_groups_kernel(const float* in, float* out, int num_groups, int group_size, int dim)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total = num_groups * dim;
+    if (idx < total) {
+        int g = idx / dim;
+        int d = idx % dim;
+        float s = 0.0f;
+        for (int k = 0; k < group_size; ++k) s += in[(g * group_size + k) * dim + d];
+        out[idx] = s / (float)group_size;
+    }
+}
+
+// Broadcast each group's gradient back across its sub-tokens (divided by group_size).
+__global__ void mean_pool_groups_backward_kernel(const float* dout, float* din, int num_groups, int group_size, int dim)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total = num_groups * group_size * dim;
+    if (idx < total) {
+        int row = idx / dim;
+        int d = idx % dim;
+        int g = row / group_size;
+        din[idx] = dout[g * dim + d] / (float)group_size;
+    }
+}
+
+void mean_pool_groups_cuda(const float* in, float* out, int num_groups, int group_size, int dim)
+{
+    int total = num_groups * dim;
+    int threads = 256;
+    int blocks = (total + threads - 1) / threads;
+    mean_pool_groups_kernel<<<blocks, threads>>>(in, out, num_groups, group_size, dim);
+}
+
+void mean_pool_groups_backward_cuda(const float* dout, float* din, int num_groups, int group_size, int dim)
+{
+    int total = num_groups * group_size * dim;
+    int threads = 256;
+    int blocks = (total + threads - 1) / threads;
+    mean_pool_groups_backward_kernel<<<blocks, threads>>>(dout, din, num_groups, group_size, dim);
+}
+
+// ================= Pointer / copy head =================
+// Average attention over heads: attn [N*heads, Tq, S] -> attn_mean [N*Tq, S].
+__global__ void reduce_heads_attn_kernel(const float* attn, float* out, int batch, int heads, int Tq, int S)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total = batch * Tq * S;
+    if (idx < total) {
+        int j = idx % S;
+        int t = (idx / S) % Tq;
+        int n = idx / (S * Tq);
+        float s = 0.0f;
+        for (int h = 0; h < heads; ++h)
+            s += attn[((n * heads + h) * Tq + t) * S + j];
+        out[(n * Tq + t) * S + j] = s / (float)heads;
+    }
+}
+
+// Inverse: spread d_attn_mean [N*Tq, S] back to all heads (divided by heads).
+__global__ void expand_heads_attn_kernel(const float* d_mean, float* d_attn, int batch, int heads, int Tq, int S)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total = batch * heads * Tq * S;
+    if (idx < total) {
+        int j = idx % S;
+        int t = (idx / S) % Tq;
+        int h = (idx / (S * Tq)) % heads;
+        int n = idx / (S * Tq * heads);
+        d_attn[((n * heads + h) * Tq + t) * S + j] = d_mean[(n * Tq + t) * S + j] / (float)heads;
+    }
+}
+
+// Scatter schema attention into the vocab: P_schema[bt, vocab_id[j]] += attn_mean[bt, j].
+__global__ void copy_scatter_kernel(const float* attn_mean, const float* vocab_ids, float* P_schema, int batch_seq, int S, int V)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total = batch_seq * S;
+    if (idx < total) {
+        int bt = idx / S;
+        int j = idx % S;
+        int v = (int)vocab_ids[j];
+        if (v >= 0 && v < V)
+            atomicAdd(&P_schema[bt * V + v], attn_mean[bt * S + j]);
+    }
+}
+
+// Gather back: d_attn_mean[bt, j] = dP_schema[bt, vocab_id[j]].
+__global__ void copy_gather_kernel(const float* dP_schema, const float* vocab_ids, float* d_attn_mean, int batch_seq, int S, int V)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total = batch_seq * S;
+    if (idx < total) {
+        int bt = idx / S;
+        int j = idx % S;
+        int v = (int)vocab_ids[j];
+        d_attn_mean[idx] = (v >= 0 && v < V) ? dP_schema[bt * V + v] : 0.0f;
+    }
+}
+
+// P_final = p_gen * P_vocab + (1 - p_gen) * P_schema   (p_gen broadcast over vocab).
+__global__ void blend_forward_kernel(const float* p_gen, const float* P_vocab, const float* P_schema, float* P_final, int batch_seq, int V)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total = batch_seq * V;
+    if (idx < total) {
+        int bt = idx / V;
+        float pg = p_gen[bt];
+        P_final[idx] = pg * P_vocab[idx] + (1.0f - pg) * P_schema[idx];
+    }
+}
+
+// True cross-entropy-on-probability gradient (label-smoothed, masked): dL/dP_final.
+__global__ void ce_prob_grad_kernel(const float* P_final, const float* targets_idx, float* dP, int batch_seq, int V, int valid_tokens, float eps)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total = batch_seq * V;
+    if (idx < total) {
+        int row = idx / V;
+        int col = idx % V;
+        int target = (int)targets_idx[row];
+        if (target == -100) { dP[idx] = 0.0f; return; }
+        float t_v = (col == target) ? (1.0f - eps) + (eps / (float)V) : (eps / (float)V);
+        dP[idx] = -t_v / (P_final[idx] + 1e-7f) / (float)valid_tokens;
+    }
+}
+
+// Split the blend gradient into the two branches.
+__global__ void blend_backward_dist_kernel(const float* p_gen, const float* dP_final, float* dP_vocab, float* dP_schema, int batch_seq, int V)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total = batch_seq * V;
+    if (idx < total) {
+        int bt = idx / V;
+        float pg = p_gen[bt];
+        float g = dP_final[idx];
+        dP_vocab[idx] = pg * g;
+        dP_schema[idx] = (1.0f - pg) * g;
+    }
+}
+
+// dp_gen[bt] = sum_v (P_vocab - P_schema) * dP_final.
+__global__ void blend_backward_pgen_kernel(const float* P_vocab, const float* P_schema, const float* dP_final, float* dp_gen, int batch_seq, int V)
+{
+    int bt = blockIdx.x * blockDim.x + threadIdx.x;
+    if (bt < batch_seq) {
+        float s = 0.0f;
+        for (int v = 0; v < V; ++v) {
+            int i = bt * V + v;
+            s += (P_vocab[i] - P_schema[i]) * dP_final[i];
+        }
+        dp_gen[bt] = s;
+    }
+}
+
+// (reuses the existing sigmoid_forward_kernel defined earlier in this file)
+
+// dy *= s*(1-s)  (s = sigmoid output)
+__global__ void sigmoid_grad_mul_kernel(const float* s, float* dy, int size)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < size) dy[idx] *= s[idx] * (1.0f - s[idx]);
+}
+
+void reduce_heads_attn_cuda(const float* attn, float* out, int batch, int heads, int Tq, int S)
+{
+    int total = batch * Tq * S; int th = 256; int bl = (total + th - 1) / th;
+    reduce_heads_attn_kernel<<<bl, th>>>(attn, out, batch, heads, Tq, S);
+}
+void expand_heads_attn_cuda(const float* d_mean, float* d_attn, int batch, int heads, int Tq, int S)
+{
+    int total = batch * heads * Tq * S; int th = 256; int bl = (total + th - 1) / th;
+    expand_heads_attn_kernel<<<bl, th>>>(d_mean, d_attn, batch, heads, Tq, S);
+}
+void copy_scatter_cuda(const float* attn_mean, const float* vocab_ids, float* P_schema, int batch_seq, int S, int V)
+{
+    cudaMemset(P_schema, 0, (size_t)batch_seq * V * sizeof(float));
+    int total = batch_seq * S; int th = 256; int bl = (total + th - 1) / th;
+    copy_scatter_kernel<<<bl, th>>>(attn_mean, vocab_ids, P_schema, batch_seq, S, V);
+}
+void copy_gather_cuda(const float* dP_schema, const float* vocab_ids, float* d_attn_mean, int batch_seq, int S, int V)
+{
+    int total = batch_seq * S; int th = 256; int bl = (total + th - 1) / th;
+    copy_gather_kernel<<<bl, th>>>(dP_schema, vocab_ids, d_attn_mean, batch_seq, S, V);
+}
+void blend_forward_cuda(const float* p_gen, const float* P_vocab, const float* P_schema, float* P_final, int batch_seq, int V)
+{
+    int total = batch_seq * V; int th = 256; int bl = (total + th - 1) / th;
+    blend_forward_kernel<<<bl, th>>>(p_gen, P_vocab, P_schema, P_final, batch_seq, V);
+}
+void ce_prob_grad_cuda(const float* P_final, const float* targets_idx, float* dP, int batch_seq, int V, int valid_tokens)
+{
+    int total = batch_seq * V; int th = 256; int bl = (total + th - 1) / th;
+    ce_prob_grad_kernel<<<bl, th>>>(P_final, targets_idx, dP, batch_seq, V, valid_tokens, 0.1f);
+}
+void blend_backward_dist_cuda(const float* p_gen, const float* dP_final, float* dP_vocab, float* dP_schema, int batch_seq, int V)
+{
+    int total = batch_seq * V; int th = 256; int bl = (total + th - 1) / th;
+    blend_backward_dist_kernel<<<bl, th>>>(p_gen, dP_final, dP_vocab, dP_schema, batch_seq, V);
+}
+void blend_backward_pgen_cuda(const float* P_vocab, const float* P_schema, const float* dP_final, float* dp_gen, int batch_seq, int V)
+{
+    int th = 256; int bl = (batch_seq + th - 1) / th;
+    blend_backward_pgen_kernel<<<bl, th>>>(P_vocab, P_schema, dP_final, dp_gen, batch_seq, V);
+}
+void sigmoid_forward_cuda(float* data, int size)
+{
+    int th = 256; int bl = (size + th - 1) / th;
+    sigmoid_forward_kernel<<<bl, th>>>(data, size);
+}
+void sigmoid_grad_mul_cuda(const float* s, float* dy, int size)
+{
+    int th = 256; int bl = (size + th - 1) / th;
+    sigmoid_grad_mul_kernel<<<bl, th>>>(s, dy, size);
+}
+
 void cross_entropy_cuda(const float* pred, const float* targets_idx, float* dy, int batch_seq, int vocab_size, int valid_tokens)
 {
     int total_elements = batch_seq * vocab_size;
@@ -1360,18 +1578,66 @@ float mse_loss_cuda(const Tensor& y_,const Tensor& y,Tensor& loss)
     return h_loss;
 }
 
-float cross_entropy_loss_cuda(const Tensor& y_, const Tensor& y, Tensor& loss)
+float cross_entropy_loss_cuda(const float* pred, const float* targets_idx, float* loss, int batch_seq, int vocab_size, int valid_tokens)
+{
+    cudaMemset(loss, 0, sizeof(float));
+
+    // One thread per token; the kernel iterates the vocab internally and skips -100 targets.
+    int threads = 256;
+    int blocks = (batch_seq + threads - 1) / threads;
+    cross_entropy_loss_kernel<<<blocks, threads>>>(pred, targets_idx, loss, batch_seq, vocab_size, valid_tokens, 0.1f);
+    cudaDeviceSynchronize();
+
+    float h_loss = 0.0f;
+    cudaMemcpy(&h_loss, loss, sizeof(float), cudaMemcpyDeviceToHost);
+    return h_loss;
+}
+
+// ---- Dense one-hot cross entropy (legacy path for Network / ViT / BERT / timeseries) ----
+// Targets are full one-hot rows matching predictions; divide by row count (no ignore mask).
+__global__ void cross_entropy_dense_kernel(const float* y_, const float* y, float* dy, int size, int n, int k, float epsilon)
+{
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if(index < size)
+    {
+        float target = y[index] * (1.0f - epsilon) + (epsilon / (float)k);
+        dy[index] = (y_[index] - target) / (float)n;
+    }
+}
+
+__global__ void cross_entropy_loss_dense_kernel(const float* y_, const float* y, float* loss, int size, int n, int k, float epsilon)
+{
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if(index < size)
+    {
+        float target = y[index] * (1.0f - epsilon) + (epsilon / (float)k);
+        atomicAdd(loss, -target * logf(y_[index] + 1e-7f) / (float)n);
+    }
+}
+
+void cross_entropy_dense_cuda(const Tensor& y_, const Tensor& y, Tensor& dy)
+{
+    int n = y.rows();
+    int k = y.cols();
+    int size = n * k;
+    float epsilon = 0.1f;
+    int threads = BLOCK_SIZE;
+    int blocks = (size + threads - 1) / threads;
+    cross_entropy_dense_kernel<<<blocks, threads>>>(y_.data(), y.data(), dy.data(), size, n, k, epsilon);
+    cudaDeviceSynchronize();
+}
+
+float cross_entropy_loss_dense_cuda(const Tensor& y_, const Tensor& y, Tensor& loss)
 {
     float* d_loss = loss.data();
     cudaMemset(d_loss, 0, sizeof(float));
 
-    int size = y.rows() * y.cols();
-    int k    = y.cols();
+    int n = y.rows();
+    int k = y.cols();
+    int size = n * k;
     float epsilon = 0.1f;
-
     int blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    cross_entropy_loss_kernel<<<blocks, BLOCK_SIZE>>>(y_.data(), y.data(), d_loss, size, y_.rows(), k, epsilon);
-
+    cross_entropy_loss_dense_kernel<<<blocks, BLOCK_SIZE>>>(y_.data(), y.data(), d_loss, size, n, k, epsilon);
     cudaDeviceSynchronize();
 
     float h_loss = 0.0f;

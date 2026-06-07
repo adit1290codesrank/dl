@@ -66,6 +66,7 @@ def generate_dataset():
     n_val = len(tokenized_samples) - n_train
     seq_len = 128 # Capped to reduce T^2 attention cost
     schema_size = len(schema_elements)
+    max_schema_toks = 6 # Sub-tokens kept per schema element (full element, not just first BPE piece)
     
     train_samples = tokenized_samples[:n_train]
     val_samples = tokenized_samples[n_train:]
@@ -79,65 +80,57 @@ def generate_dataset():
     sep_id = tokenizer.token_to_id("\n")
     if sep_id is None: sep_id = 1
 
+    # EOS marks the end of the SQL target so the model learns to stop.
+    eos_id = tokenizer.token_to_id("[EOS]")
+    if eos_id is None: eos_id = unk_id
+
+    # Full sub-token sequence per schema element, padded/truncated to max_schema_toks.
+    schema_tok_matrix = []           # [schema_size, max_schema_toks]
+    schema_vocab_ids = []            # [schema_size] copy target = first sub-token id
+    for toks in schema_tokens_list:
+        ids = toks[:max_schema_toks] if toks else [unk_id]
+        schema_vocab_ids.append(ids[0])
+        ids = ids + [pad_id] * (max_schema_toks - len(ids))
+        schema_tok_matrix.append(ids)
+
     def pad_sequence(ids, length):
         if len(ids) > length:
             return ids[:length]
         return ids + [pad_id] * (length - len(ids))
 
+    schema_flat = [float(schema_tok_matrix[j][s]) for j in range(schema_size) for s in range(max_schema_toks)]
+
     def write_set(f, dataset, n):
         X = array.array('f', [0.0] * (n * seq_len))
         Y = array.array('f', [0.0] * (n * seq_len))
-        Schema = array.array('f', [0.0] * (n * schema_size))
-        
-        schema_ids = [toks[0] if toks else unk_id for toks in schema_tokens_list]
-        
+        # Full sub-token sequences per element: [n, schema_size * max_schema_toks]
+        Schema = array.array('f', [0.0] * (n * schema_size * max_schema_toks))
+
         for i, (inp_ids, out_ids) in enumerate(dataset):
-            combined = inp_ids + [sep_id] + out_ids
+            combined = inp_ids + [sep_id] + out_ids + [eos_id]
             x_seq = combined[:-1]
-            y_seq = combined[1:]
-            
-            # Label everything before [SEP] as -100 (ignore)
-            y_labels = [-100] * len(inp_ids) + out_ids
+
+            # Targets: ignore the prompt (and the sep position), supervise out_ids then EOS.
+            y_labels = [-100] * len(inp_ids) + out_ids + [eos_id]
 
             x_pad = pad_sequence(x_seq, seq_len)
-            
-            # Pad sequence for Y should use -100
             if len(y_labels) > seq_len:
                 y_pad = y_labels[:seq_len]
             else:
                 y_pad = y_labels + [-100] * (seq_len - len(y_labels))
-            
+
             for j in range(seq_len):
                 X[i * seq_len + j] = float(x_pad[j])
                 Y[i * seq_len + j] = float(y_pad[j])
-                
-            for j in range(schema_size):
-                Schema[i * schema_size + j] = float(schema_ids[j])
-                
+
+            # Schema is global (identical every row); copy the flattened sub-token matrix.
+            base = i * schema_size * max_schema_toks
+            for k in range(schema_size * max_schema_toks):
+                Schema[base + k] = schema_flat[k]
+
         X.tofile(f)
         Schema.tofile(f)
         Y.tofile(f)
-
-    import hashlib
-    def get_hash_vec(text, dim=2048):
-        vec = [0.0] * dim
-        text = text.lower()
-        for i in range(len(text)-2):
-            tg = text[i:i+3]
-            idx = int(hashlib.md5(tg.encode()).hexdigest(), 16) % dim
-            vec[idx] = 1.0
-        for word in text.split():
-            if len(word) > 2:
-                idx = int(hashlib.md5(word.encode()).hexdigest(), 16) % dim
-                vec[idx] = 1.0
-        return vec
-        
-    print("Generating Frozen Lexical Keys...")
-    K_frozen = array.array('f', [0.0] * (schema_size * 2048))
-    for i, desc in enumerate(schema_elements):
-        vec = get_hash_vec(desc)
-        for j in range(2048):
-            K_frozen[i * 2048 + j] = vec[j]
 
     out_bin = os.path.join(out_dir, "breakwalls.bin")
     with open(out_bin, "wb") as f:
@@ -146,10 +139,11 @@ def generate_dataset():
         f.write(struct.pack("i", seq_len))
         f.write(struct.pack("i", vocab_size))
         f.write(struct.pack("i", schema_size))
-        
-        # Write global K_frozen
-        K_frozen.tofile(f)
-        
+        f.write(struct.pack("i", max_schema_toks))
+
+        # Copy-head target ids: one vocab id per schema element (first sub-token).
+        array.array('f', [float(v) for v in schema_vocab_ids]).tofile(f)
+
         write_set(f, train_samples, n_train)
         write_set(f, val_samples, n_val)
         
@@ -162,7 +156,7 @@ def generate_dataset():
             f.write(f"{k}|{v}\n")
         
     print(f"Successfully generated {out_bin} from synthetic dataset!")
-    print(f"Train samples: {n_train}, Val samples: {n_val}, Seq Len: {seq_len}, Schema Size: {schema_size}")
+    print(f"Train samples: {n_train}, Val samples: {n_val}, Seq Len: {seq_len}, Schema Size: {schema_size}, Max Schema Toks: {max_schema_toks}")
 
 if __name__ == "__main__":
     generate_dataset()

@@ -27,7 +27,8 @@ def train_tokenizer():
     
     # We use a vocab size of 2000. It's enough to capture T-SQL keywords and common Amazon Logistics terms,
     # while forcing it to split rare typos into subwords.
-    trainer = BpeTrainer(special_tokens=["[PAD]", "[UNK]", "[CLS]", "[SEP]"], vocab_size=2000)
+    # [EOS] appended last so [PAD]=0 / [UNK]=1 ids stay stable; gives the SQL target an explicit stop token.
+    trainer = BpeTrainer(special_tokens=["[PAD]", "[UNK]", "[CLS]", "[SEP]", "[EOS]"], vocab_size=2000)
     
     tokenizer.train(files=[corpus_path], trainer=trainer)
     

@@ -9,6 +9,9 @@
 #include <fstream>
 #include <iostream>
 
+void mean_pool_groups_cuda(const float* in, float* out, int num_groups, int group_size, int dim);
+void mean_pool_groups_backward_cuda(const float* dout, float* din, int num_groups, int group_size, int dim);
+
 /*
 Pure Sequence Encoder for Text.
 
@@ -31,7 +34,12 @@ class TextEncoder : public Layer
         Dropout emb_drop;
         std::vector<std::unique_ptr<Transformer>> blocks;
 
+        // State for forward_pooled / backward_pooled
+        int cached_pool_groups = 0;
+        int cached_pool_gsize = 0;
+
     public:
+        Embedding& token_embedding() { return token_emb; }
         TextEncoder(int vocab_size, int max_len, int dim, int heads, int depth, bool causal = false)
             : vocab_size(vocab_size), seq_len(max_len), dim(dim), depth(depth),
               token_emb(vocab_size, dim), pos_emb(max_len, dim), emb_drop(0.1f)
@@ -79,6 +87,54 @@ class TextEncoder : public Layer
             token_emb.backward(d_enc, lr);
             
             return d_enc;
+        }
+
+        // Pooled path: input is [batch, n_elem, sub_toks] of token ids. Each element's sub-tokens
+        // are embedded and mean-pooled into one vector, then run through pos_emb + blocks.
+        // Output: [batch, n_elem, dim].
+        Tensor forward_pooled(const Tensor& X)
+        {
+            int batch = X.shape[0];
+            int n_elem = X.shape[1];
+            int gsize = X.shape[2];
+
+            Tensor flat_tokens = X.reshape({batch, n_elem * gsize});
+            Tensor emb = token_emb.forward(flat_tokens);   // [batch, n_elem*gsize, dim]
+
+            int num_groups = batch * n_elem;
+            Tensor pooled(std::vector<int>{num_groups, dim});
+            mean_pool_groups_cuda(emb.data(), pooled.data(), num_groups, gsize, dim);
+            cached_pool_groups = num_groups;
+            cached_pool_gsize = gsize;
+
+            Tensor x = pooled.reshape({batch, n_elem, dim});
+
+            std::vector<float> pidx(batch * n_elem);
+            for(int b = 0; b < batch; ++b)
+                for(int t = 0; t < n_elem; ++t)
+                    pidx[b * n_elem + t] = (float)(t % seq_len);
+
+            x = x + pos_emb.forward(Tensor::upload(pidx, {batch, n_elem}));
+            x = emb_drop.forward(x);
+
+            for(auto& blk : blocks) x = blk->forward(x);
+            return x;
+        }
+
+        Tensor backward_pooled(const Tensor& dY, float lr)
+        {
+            Tensor d = dY;
+            for(int i = depth - 1; i >= 0; --i) d = blocks[i]->backward(d, lr);
+            d = emb_drop.backward(d, lr);
+            pos_emb.backward(d, lr);
+
+            // Un-pool: broadcast each element's gradient back across its sub-tokens (/gsize).
+            int num_groups = cached_pool_groups;
+            int gsize = cached_pool_gsize;
+            Tensor d_unpooled(std::vector<int>{num_groups * gsize, dim});
+            mean_pool_groups_backward_cuda(d.data(), d_unpooled.data(), num_groups, gsize, dim);
+            token_emb.backward(d_unpooled, lr);
+            return Tensor();
         }
 
         void set_mode(bool train) override

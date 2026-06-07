@@ -4,10 +4,10 @@
 #include <fstream>
 #include <stdexcept>
 
-void load_breakwalls_dataset(const std::string& path, int& n_train, int& n_val, int& seq_len, int& vocab_size, int& schema_size,
+void load_breakwalls_dataset(const std::string& path, int& n_train, int& n_val, int& seq_len, int& vocab_size, int& schema_size, int& max_schema_toks,
                              std::vector<float>& X_train, std::vector<float>& Schema_train, std::vector<float>& Y_train,
                              std::vector<float>& X_val, std::vector<float>& Schema_val, std::vector<float>& Y_val,
-                             std::vector<float>& K_frozen) 
+                             std::vector<float>& schema_vocab_ids)
 {
     std::ifstream file(path, std::ios::binary);
     if(!file.is_open()) throw std::runtime_error("Could not open " + path);
@@ -17,63 +17,71 @@ void load_breakwalls_dataset(const std::string& path, int& n_train, int& n_val, 
     file.read(reinterpret_cast<char*>(&seq_len), sizeof(int));
     file.read(reinterpret_cast<char*>(&vocab_size), sizeof(int));
     file.read(reinterpret_cast<char*>(&schema_size), sizeof(int));
-    
-    K_frozen.resize(schema_size * 2048);
-    file.read(reinterpret_cast<char*>(K_frozen.data()), K_frozen.size() * sizeof(float));
-    
+    file.read(reinterpret_cast<char*>(&max_schema_toks), sizeof(int));
+
+    // Copy-head targets: one vocab id per schema element (first sub-token).
+    schema_vocab_ids.resize(schema_size);
+    file.read(reinterpret_cast<char*>(schema_vocab_ids.data()), schema_vocab_ids.size() * sizeof(float));
+
+    int schema_stride = schema_size * max_schema_toks; // sub-tokens per example
+
     X_train.resize(n_train * seq_len);
-    Schema_train.resize(n_train * schema_size);
+    Schema_train.resize(n_train * schema_stride);
     Y_train.resize(n_train * seq_len);
 
     file.read(reinterpret_cast<char*>(X_train.data()), X_train.size() * sizeof(float));
     file.read(reinterpret_cast<char*>(Schema_train.data()), Schema_train.size() * sizeof(float));
     file.read(reinterpret_cast<char*>(Y_train.data()), Y_train.size() * sizeof(float));
-    
+
     X_val.resize(n_val * seq_len);
-    Schema_val.resize(n_val * schema_size);
+    Schema_val.resize(n_val * schema_stride);
     Y_val.resize(n_val * seq_len);
 
     file.read(reinterpret_cast<char*>(X_val.data()), X_val.size() * sizeof(float));
     file.read(reinterpret_cast<char*>(Schema_val.data()), Schema_val.size() * sizeof(float));
     file.read(reinterpret_cast<char*>(Y_val.data()), Y_val.size() * sizeof(float));
-    
+
     file.close();
 }
 
 int main()
 {
     try {
-        int n_train, n_val, seq_len, vocab_size, schema_size;
-        std::vector<float> X_train, Schema_train, Y_train, X_val, Schema_val, Y_val, K_frozen;
-        
+        int n_train, n_val, seq_len, vocab_size, schema_size, max_schema_toks;
+        std::vector<float> X_train, Schema_train, Y_train, X_val, Schema_val, Y_val, schema_vocab_ids;
+
         std::cout << "Loading BreakWalls Dataset..." << std::endl;
-        load_breakwalls_dataset("data/breakwalls.bin", n_train, n_val, seq_len, vocab_size, schema_size, 
-                                X_train, Schema_train, Y_train, X_val, Schema_val, Y_val, K_frozen);
+        load_breakwalls_dataset("data/breakwalls.bin", n_train, n_val, seq_len, vocab_size, schema_size, max_schema_toks,
+                                X_train, Schema_train, Y_train, X_val, Schema_val, Y_val, schema_vocab_ids);
 
         std::cout << "\n========================================" << std::endl;
         std::cout << "Schema-RAG Pointer Network Training" << std::endl;
         std::cout << "========================================" << std::endl;
-        std::cout << "Seq Len: " << seq_len << " Vocab Size: " << vocab_size << " Schema Size: " << schema_size << std::endl;
+        std::cout << "Seq Len: " << seq_len << " Vocab Size: " << vocab_size << " Schema Size: " << schema_size
+                  << " Max Schema Toks: " << max_schema_toks << std::endl;
         std::cout << "Train examples: " << n_train << std::endl;
-        
-        int dim = 256; // Scaled up for 15k dataset
+
+        int dim = 256;
         int heads = 8;
-        int depth = 4; // Scaled up for 15k dataset
+        int depth = 4;
 
         std::cout << "Initializing Dual-Encoder Architecture..." << std::endl;
         SchemaRAGNet model(vocab_size, seq_len, dim, heads, depth);
 
+        // Copy-head: map each schema slot to its vocab id so attention can be scattered into the vocab distribution.
+        model.set_schema_vocab_ids(Tensor::upload(schema_vocab_ids, {schema_size, 1}));
+
         std::cout << "Starting Actual Backpropagation Loop..." << std::endl;
-        
-        model.set_k_frozen(Tensor::upload(K_frozen, {schema_size, 2048}));
-        
-        // Train for 500 epochs with Warmup + Cosine Annealing to ensure full convergence with large batch size
-        model.fit(X_train, Schema_train, Y_train, X_val, Schema_val, Y_val, n_train, n_val, seq_len, schema_size, vocab_size, 500, 64, 1e-4f);
 
-        std::cout << "Saving weights to weights/schema_rag.bin" << std::endl;
-        model.save("weights/schema_rag.bin");
+        // Train for 500 epochs with Warmup + Cosine Annealing.
+        model.fit(X_train, Schema_train, Y_train, X_val, Schema_val, Y_val, n_train, n_val, seq_len, schema_size, max_schema_toks, vocab_size, 500, 64, 1e-4f);
 
-        std::cout << "\nModel Training Complete! Architecture successfully built." << std::endl;
+        // fit() already checkpoints the best-val model to weights/schema_rag.bin each time it improves,
+        // so a run can be stopped at any point. Save the final-epoch weights separately (don't clobber best).
+        std::cout << "Saving final-epoch weights to weights/schema_rag_final.bin" << std::endl;
+        model.save("weights/schema_rag_final.bin");
+
+        std::cout << "\nModel Training Complete! Best checkpoint is weights/schema_rag.bin" << std::endl;
 
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;

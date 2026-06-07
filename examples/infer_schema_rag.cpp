@@ -7,7 +7,8 @@
 #include <map>
 #include <sstream>
 
-void load_metadata_and_schema(const std::string& path, int& seq_len, int& vocab_size, int& schema_size, std::vector<float>& Schema, std::vector<float>& K_frozen) 
+void load_metadata_and_schema(const std::string& path, int& seq_len, int& vocab_size, int& schema_size, int& max_schema_toks,
+                              std::vector<float>& Schema, std::vector<float>& schema_vocab_ids)
 {
     std::ifstream file(path, std::ios::binary);
     if(!file.is_open()) throw std::runtime_error("Could not open " + path);
@@ -18,18 +19,18 @@ void load_metadata_and_schema(const std::string& path, int& seq_len, int& vocab_
     file.read(reinterpret_cast<char*>(&seq_len), sizeof(int));
     file.read(reinterpret_cast<char*>(&vocab_size), sizeof(int));
     file.read(reinterpret_cast<char*>(&schema_size), sizeof(int));
-    
-    K_frozen.resize(schema_size * 2048);
-    file.read(reinterpret_cast<char*>(K_frozen.data()), K_frozen.size() * sizeof(float));
-    
-    std::vector<float> X_train(n_train * seq_len);
-    file.read(reinterpret_cast<char*>(X_train.data()), X_train.size() * sizeof(float));
-    
-    std::vector<float> Full_Schema(n_train * schema_size);
-    file.read(reinterpret_cast<char*>(Full_Schema.data()), Full_Schema.size() * sizeof(float));
-    
-    Schema.assign(Full_Schema.begin(), Full_Schema.begin() + schema_size);
-    
+    file.read(reinterpret_cast<char*>(&max_schema_toks), sizeof(int));
+
+    schema_vocab_ids.resize(schema_size);
+    file.read(reinterpret_cast<char*>(schema_vocab_ids.data()), schema_vocab_ids.size() * sizeof(float));
+
+    int stride = schema_size * max_schema_toks; // sub-tokens per example (schema is global/identical)
+
+    // Skip X_train, then read the first (global) schema row.
+    file.seekg((std::streamoff)n_train * seq_len * sizeof(float), std::ios::cur);
+    Schema.resize(stride);
+    file.read(reinterpret_cast<char*>(Schema.data()), Schema.size() * sizeof(float));
+
     file.close();
 }
 
@@ -57,11 +58,11 @@ void load_jargon(const std::string& path, std::map<std::string, std::string>& di
 int main()
 {
     try {
-        int seq_len, vocab_size, schema_size;
-        std::vector<float> Schema, K_frozen;
-        
+        int seq_len, vocab_size, schema_size, max_schema_toks;
+        std::vector<float> Schema, schema_vocab_ids;
+
         std::cout << "Loading Database Schema & Metadata..." << std::endl;
-        load_metadata_and_schema("data/breakwalls.bin", seq_len, vocab_size, schema_size, Schema, K_frozen);
+        load_metadata_and_schema("data/breakwalls.bin", seq_len, vocab_size, schema_size, max_schema_toks, Schema, schema_vocab_ids);
 
         std::cout << "Loading RAG Context..." << std::endl;
         std::vector<std::string> schema_lower;
@@ -72,15 +73,16 @@ int main()
         std::cout << "Loading BPE Tokenizer..." << std::endl;
         BPETokenizer tokenizer("data/bpe_vocab.txt", "data/bpe_merges.txt");
 
-        int dim = 128; 
-        int heads = 4;
-        int depth = 2; 
+        // Must match training (examples/train_schema_rag.cpp).
+        int dim = 256;
+        int heads = 8;
+        int depth = 4;
 
         std::cout << "Initializing Architecture & Loading Weights..." << std::endl;
         SchemaRAGNet model(vocab_size, seq_len, dim, heads, depth);
-        
-        model.set_k_frozen(Tensor::upload(K_frozen, {schema_size, 2048}));
-        
+
+        model.set_schema_vocab_ids(Tensor::upload(schema_vocab_ids, {schema_size, 1}));
+
         // Disable dropout and load weights
         model.set_mode(false);
         model.load("weights/schema_rag.bin");
@@ -133,8 +135,8 @@ int main()
                 for(int i = 0; i < current_len; ++i) X[i] = (float)base_ids[i];
                 
                 Tensor dX = Tensor::upload(X, {1, seq_len});
-                Tensor dS = Tensor::upload(Schema, {1, schema_size});
-                
+                Tensor dS = Tensor::upload(Schema, {1, schema_size, max_schema_toks});
+
                 Tensor pred = model.forward(dX, dS);
                 std::vector<float> out_probs = pred.download();
                 
@@ -149,13 +151,14 @@ int main()
                     }
                 }
                 
+                // [EOS] is special-token id 4 ([PAD,UNK,CLS,SEP,EOS]); stop there or on PAD.
+                const int eos_id = 4;
+                if(best_idx == 0 || best_idx == eos_id) break;
+
                 out_ids.push_back(best_idx);
                 if(current_len < seq_len) {
                     base_ids[current_len] = best_idx;
                 }
-                
-                // If it predicts padding, generation is finished
-                if(best_idx == 0) break;
             }
             
             std::string sql_out = tokenizer.decode(out_ids);
