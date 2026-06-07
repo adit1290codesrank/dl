@@ -1412,7 +1412,7 @@ __global__ void apply_attention_mask_kernel(float* scores, const float* mask, in
         int j = idx % S;
         int n = idx / (S * Tq * heads);
         // mask is shape [batch, S]
-        if (mask[n * S + j] == 0.0f) {
+        if (mask[n * S + j] < 0.5f) {
             scores[idx] += -1e9f;
         }
     }
