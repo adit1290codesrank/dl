@@ -331,7 +331,7 @@ class SchemaRAGNet
 
                     // Loss is monitored on the mixture distribution (valid for any prob dist).
                     pred.shape = {actual_bs * seq_len, vocab_size};
-                    tot_loss += Loss::compute_loss(pred, dY, loss_val, LossType::CROSS_ENTROPY, valid_tokens);
+                    tot_loss += Loss::compute_loss(pred, tY_idx, loss_val, LossType::CROSS_ENTROPY, valid_tokens);
                     pred.shape = {actual_bs, seq_len, vocab_size}; // restore shape
 
                     if (b % 5 == 0 || b == nb - 1) {

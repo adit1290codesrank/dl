@@ -17,6 +17,7 @@ void full_attention_softmax_backward_cuda(const float* dY, const float* Y, float
 void split_heads_cuda(const float* input, float* output, int N, int T, int H, int dk);
 void merge_heads_cuda(const float* input, float* output, int N, int T, int H, int dk);
 void batched_matmul_cuda(const float* A, bool transA, const float* B, bool transB, float* C, int batch, int M, int K, int N);
+void apply_attention_mask_cuda(float* scores, const float* mask, int batch, int heads, int Tq, int S);
 
 // -------------------------------------------------------------------------
 // Gated K_frozen (Lexical Keys) Kernels
