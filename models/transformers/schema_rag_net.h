@@ -161,7 +161,7 @@ class SchemaRAGNet
                 float tot_loss = 0.0f;
                 
                 float current_lr;
-                int warmup_epochs = 10;
+                int warmup_epochs = epochs / 10; // 10% of training used for warmup
                 if (e <= warmup_epochs) {
                     current_lr = lr * ((float)e / warmup_epochs);
                 } else {
