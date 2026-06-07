@@ -51,7 +51,7 @@ class PointerAttention : public Layer
 
         // Dual forward taking Query and Schema
         // returns {context, attention_weights}
-        std::pair<Tensor, Tensor> forward_dual(const Tensor& query, const Tensor& schema);
+        std::pair<Tensor, Tensor> forward_dual(const Tensor& query, const Tensor& schema, const Tensor& schema_mask = Tensor());
         
         void save(std::ofstream& os) override;
         void load(std::ifstream& is) override;

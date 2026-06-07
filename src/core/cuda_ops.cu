@@ -1387,7 +1387,6 @@ void mean_pool_groups_backward_cuda(const float* dout, const float* tokens, floa
     mean_pool_groups_backward_kernel<<<blocks, threads>>>(dout, tokens, din, num_groups, group_size, dim, pad_id);
 }
 
-// ================= Pointer / copy head =================
 // Average attention over heads: attn [N*heads, Tq, S] -> attn_mean [N*Tq, S].
 __global__ void reduce_heads_attn_kernel(const float* attn, float* out, int batch, int heads, int Tq, int S)
 {
@@ -1401,6 +1400,21 @@ __global__ void reduce_heads_attn_kernel(const float* attn, float* out, int batc
         for (int h = 0; h < heads; ++h)
             s += attn[((n * heads + h) * Tq + t) * S + j];
         out[(n * Tq + t) * S + j] = s / (float)heads;
+    }
+}
+
+// Add -1e9 to padded schema elements in the attention scores
+__global__ void apply_attention_mask_kernel(float* scores, const float* mask, int batch, int heads, int Tq, int S)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total = batch * heads * Tq * S;
+    if (idx < total) {
+        int j = idx % S;
+        int n = idx / (S * Tq * heads);
+        // mask is shape [batch, S]
+        if (mask[n * S + j] == 0.0f) {
+            scores[idx] += -1e9f;
+        }
     }
 }
 
@@ -1519,6 +1533,11 @@ void reduce_heads_attn_cuda(const float* attn, float* out, int batch, int heads,
 {
     int total = batch * Tq * S; int th = 256; int bl = (total + th - 1) / th;
     reduce_heads_attn_kernel<<<bl, th>>>(attn, out, batch, heads, Tq, S);
+}
+void apply_attention_mask_cuda(float* scores, const float* mask, int batch, int heads, int Tq, int S)
+{
+    int total = batch * heads * Tq * S; int th = 256; int bl = (total + th - 1) / th;
+    apply_attention_mask_kernel<<<bl, th>>>(scores, mask, batch, heads, Tq, S);
 }
 void expand_heads_attn_cuda(const float* d_mean, float* d_attn, int batch, int heads, int Tq, int S)
 {

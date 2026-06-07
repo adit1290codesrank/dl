@@ -205,7 +205,7 @@ Tensor PointerAttention::forward(const Tensor& input) {
     return forward_dual(input, input).first;
 }
 
-std::pair<Tensor, Tensor> PointerAttention::forward_dual(const Tensor& query, const Tensor& schema) {
+std::pair<Tensor, Tensor> PointerAttention::forward_dual(const Tensor& query, const Tensor& schema, const Tensor& schema_mask) {
     cached_query = query;
     cached_schema = schema;
 
@@ -251,6 +251,14 @@ std::pair<Tensor, Tensor> PointerAttention::forward_dual(const Tensor& query, co
 
     Tensor scores(std::vector<int>{N*heads, T_q, T_k});
     batched_matmul_cuda(Qh.data(), false, Kh.data(), true, scores.data(), N*heads, T_q, head_dim, T_k);
+    
+    // Apply padding mask if provided
+    if (schema_mask.total_elements() > 0) {
+        // schema_mask is [N, T_k] (where T_k is schema_size)
+        // apply_attention_mask_cuda adds -1e9 to padded elements
+        apply_attention_mask_cuda(scores.data(), schema_mask.data(), N, heads, T_q, T_k);
+    }
+    
     attention_scale_cuda(scores.data(), scale, N*heads*T_q*T_k);
 
     Tensor attn(std::vector<int>{N*heads, T_q, T_k});

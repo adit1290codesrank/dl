@@ -19,6 +19,7 @@ void full_attention_softmax_backward_cuda(const float* dY, const float* Y, float
 
 // Pointer / copy-head kernels (defined in cuda_ops.cu)
 void reduce_heads_attn_cuda(const float* attn, float* out, int batch, int heads, int Tq, int S);
+void apply_attention_mask_cuda(float* scores, const float* mask, int batch, int heads, int Tq, int S);
 void expand_heads_attn_cuda(const float* d_mean, float* d_attn, int batch, int heads, int Tq, int S);
 void copy_scatter_cuda(const float* attn_mean, const float* vocab_ids, float* P_schema, int batch_seq, int S, int V);
 void copy_gather_cuda(const float* dP_schema, const float* vocab_ids, float* d_attn_mean, int batch_seq, int S, int V);
@@ -58,6 +59,7 @@ class SchemaRAGNet
         int depth;
 
         Tensor schema_vocab_ids; // [schema_size, 1] vocab id per schema slot (copy-head targets)
+        Tensor schema_mask;      // [batch, schema_size] 1.0 for valid, 0.0 for pad
 
     public:
         SchemaRAGNet(int vocab_size, int max_seq_len, int dimension, int heads, int depth)
@@ -89,13 +91,17 @@ class SchemaRAGNet
             schema_vocab_ids = ids;
         }
 
+        void set_schema_mask(const Tensor& mask) {
+            schema_mask = mask;
+        }
+
         // Returns the pointer-generator distribution P_final = p_gen*P_vocab + (1-p_gen)*P_schema.
         Tensor forward(const Tensor& query_tokens, const Tensor& schema_tokens) {
             Tensor Q_emb = query_encoder->forward(query_tokens);
             // schema_tokens: [batch, schema_size, max_schema_toks] → pooled to [batch, schema_size, dim]
             Tensor K_emb = schema_encoder->forward_pooled(schema_tokens);
 
-            auto out = pointer_layer->forward_dual(Q_emb, K_emb);
+            auto out = pointer_layer->forward_dual(Q_emb, K_emb, schema_mask);
             Tensor context = out.first;     // [batch, seq, dim]
             Tensor attn = out.second;       // [batch*heads, seq, schema_size]
 
@@ -287,6 +293,7 @@ class SchemaRAGNet
                     std::vector<float> bX(actual_bs * seq_len);
                     std::vector<float> bY_idx(actual_bs * seq_len);
                     std::vector<float> bS(actual_bs * schema_stride);
+                    std::vector<float> bMask(actual_bs * schema_size);
 
                     int valid_tokens = 0;
 
@@ -301,17 +308,26 @@ class SchemaRAGNet
                             bY_idx[i * seq_len + t] = (float)token_id;
                             if (token_id != -100) valid_tokens++;
                         }
+                        
+                        for (int s = 0; s < schema_size; ++s) {
+                            int start = id * schema_stride + s * max_schema_toks;
+                            float first_tok = Schema[start];
+                            // If first token is PAD (0), mask is 0.0, else 1.0
+                            bMask[i * schema_size + s] = (first_tok != 0.0f) ? 1.0f : 0.0f;
+                        }
                     }
                     if (valid_tokens == 0) valid_tokens = 1;
 
-                    Tensor dX = Tensor::upload(bX, {actual_bs, seq_len});
-                    Tensor dS = Tensor::upload(bS, {actual_bs, schema_size, max_schema_toks});
-                    Tensor dY = Tensor::upload(bY_idx, {actual_bs * seq_len, 1}); // or {actual_bs, seq_len}
+                    Tensor tX = Tensor::upload(bX, {actual_bs, seq_len});
+                    Tensor tY_idx = Tensor::upload(bY_idx, {actual_bs * seq_len, 1});
+                    Tensor tS = Tensor::upload(bS, {actual_bs, schema_size, max_schema_toks});
+                    Tensor tMask = Tensor::upload(bMask, {actual_bs, schema_size});
+                    set_schema_mask(tMask);
 
-                    Tensor pred = forward(dX, dS);   // P_final [bs, seq, vocab]
+                    Tensor pred = forward(tX, tS);   // P_final [bs, seq, vocab]
 
                     // Backward computes the CE-on-mixture gradient internally from the targets.
-                    backward_with_targets(dY, valid_tokens, current_lr);
+                    backward_with_targets(tY_idx, valid_tokens, current_lr);
 
                     // Loss is monitored on the mixture distribution (valid for any prob dist).
                     pred.shape = {actual_bs * seq_len, vocab_size};
@@ -348,15 +364,24 @@ class SchemaRAGNet
                     int actual_bs = std::min(bs, n_val - b * bs);
                     std::vector<float> bX(actual_bs * seq_len);
                     std::vector<float> bS(actual_bs * schema_stride);
+                    std::vector<float> bMask(actual_bs * schema_size);
 
                     for (int i = 0; i < actual_bs; ++i) {
                         int id = b * bs + i;
                         std::copy(X_val.begin() + id * seq_len, X_val.begin() + (id + 1) * seq_len, bX.begin() + i * seq_len);
                         std::copy(Schema_val.begin() + id * schema_stride, Schema_val.begin() + (id + 1) * schema_stride, bS.begin() + i * schema_stride);
+                        
+                        for (int s = 0; s < schema_size; ++s) {
+                            int start = id * schema_stride + s * max_schema_toks;
+                            float first_tok = Schema_val[start];
+                            bMask[i * schema_size + s] = (first_tok != 0.0f) ? 1.0f : 0.0f;
+                        }
                     }
 
                     Tensor dX = Tensor::upload(bX, {actual_bs, seq_len});
                     Tensor dS = Tensor::upload(bS, {actual_bs, schema_size, max_schema_toks});
+                    Tensor dMask = Tensor::upload(bMask, {actual_bs, schema_size});
+                    set_schema_mask(dMask);
                     
                     std::vector<float> bY_idx(actual_bs * seq_len);
                     int valid_tokens = 0;
