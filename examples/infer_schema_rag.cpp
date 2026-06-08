@@ -97,6 +97,11 @@ int main()
             std::getline(std::cin, query);
             if(query.empty() || query == "exit") break;
             
+            // Lowercase the query because the model was trained on lowercased English
+            for (char& c : query) {
+                c = std::tolower(c);
+            }
+
             // Jargon Resolution (Stage 1)
             for(const auto& pair : jargon_dict) {
                 size_t pos = 0;
@@ -170,7 +175,25 @@ int main()
                 }
             }
             
-            std::string sql_out = tokenizer.decode(out_ids);
+            std::string sql_out = "";
+            std::vector<int> current_bpe;
+            for(int id : out_ids) {
+                if (id >= 50000) {
+                    if (!current_bpe.empty()) {
+                        sql_out += tokenizer.decode(current_bpe);
+                        current_bpe.clear();
+                    }
+                    int schema_idx = id - 50000;
+                    if (schema_idx >= 0 && schema_idx < schema_size) {
+                        sql_out += schema_strings[schema_idx] + " ";
+                    }
+                } else {
+                    current_bpe.push_back(id);
+                }
+            }
+            if (!current_bpe.empty()) {
+                sql_out += tokenizer.decode(current_bpe);
+            }
             
             // Clean up BPE artifacts
             std::string clean_sql;

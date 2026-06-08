@@ -123,7 +123,9 @@ public:
         std::string out = "";
         for (int id : ids) {
             if (id == pad_id) break;
-            if (id >= 0 && id < (int)i2w.size()) {
+            if (id >= 50000) {
+                out += "[SCHEMA_" + std::to_string(id - 50000) + "] ";
+            } else if (id >= 0 && id < (int)i2w.size()) {
                 out += i2w[id];
                 // In standard BPE, we might need to handle spaces. 
                 // Since this is a simple port, we just append a space 

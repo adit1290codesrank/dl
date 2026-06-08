@@ -57,14 +57,34 @@ def generate_dataset():
         samples = json.load(f)
         
     print(f"Tokenizing {len(samples)} examples with BPE...")
+    import re
+    schema_dict = {}
+    for i, (desc, col) in enumerate(schema_elements):
+        schema_dict[col] = i
+    sorted_cols = sorted(schema_dict.keys(), key=len, reverse=True)
+    pattern = re.compile(r'\b(' + '|'.join(map(re.escape, sorted_cols)) + r')\b', re.IGNORECASE)
+
     tokenized_samples = []
     for s in samples:
         inp = s["input"]
         for k, v in jargon_dict.items():
             inp = inp.replace(k, v) # deterministic stage 1 resolution
-        out = s["output"]
+        out_str = s["output"]
         inp_ids = tokenizer.encode(inp).ids
-        out_ids = tokenizer.encode(out).ids
+        
+        out_ids = []
+        last_end = 0
+        for match in pattern.finditer(out_str):
+            start, end = match.span()
+            if start > last_end:
+                out_ids.extend(tokenizer.encode(out_str[last_end:start]).ids)
+            col = match.group(1).lower()
+            schema_idx = schema_dict[col]
+            out_ids.append(50000 + schema_idx)
+            last_end = end
+        if last_end < len(out_str):
+            out_ids.extend(tokenizer.encode(out_str[last_end:]).ids)
+
         tokenized_samples.append((inp_ids, out_ids))
         
     schema_tokens_list = [tokenizer.encode(desc).ids for desc, _ in schema_elements]
@@ -95,13 +115,7 @@ def generate_dataset():
     schema_tok_matrix = []           # [schema_size, max_schema_toks]
     schema_vocab_ids = []            # [schema_size] copy target = explicit token id
     for i, toks in enumerate(schema_tokens_list):
-        _, target_word = schema_elements[i]
-        target_id = tokenizer.token_to_id(target_word)
-        if target_id is None:
-            print(f"Warning: target word '{target_word}' not found in vocab! Falling back to unk_id.")
-            target_id = unk_id
-            
-        schema_vocab_ids.append(target_id)
+        schema_vocab_ids.append(50000 + i)
         
         ids = toks[:max_schema_toks] if toks else [unk_id]
         ids = ids + [pad_id] * (max_schema_toks - len(ids))
@@ -151,7 +165,7 @@ def generate_dataset():
         f.write(struct.pack("i", n_train))
         f.write(struct.pack("i", n_val))
         f.write(struct.pack("i", seq_len))
-        f.write(struct.pack("i", vocab_size))
+        f.write(struct.pack("i", 50000 + schema_size))
         f.write(struct.pack("i", schema_size))
         f.write(struct.pack("i", max_schema_toks))
 
