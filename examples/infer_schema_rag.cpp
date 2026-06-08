@@ -136,6 +136,15 @@ int main()
                 
                 Tensor dX = Tensor::upload(X, {1, seq_len});
                 Tensor dS = Tensor::upload(Schema, {1, schema_size, max_schema_toks});
+                
+                std::vector<float> bMask(schema_size, 0.0f);
+                for (int s = 0; s < schema_size; ++s) {
+                    int start = s * max_schema_toks;
+                    float first_tok = Schema[start];
+                    bMask[s] = (first_tok != 0.0f) ? 1.0f : 0.0f;
+                }
+                Tensor dMask = Tensor::upload(bMask, {1, schema_size});
+                model.set_schema_mask(dMask);
 
                 Tensor pred = model.forward(dX, dS);
                 std::vector<float> out_probs = pred.download();
