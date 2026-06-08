@@ -75,10 +75,9 @@ int main(int argc, char** argv)
         // Copy-head: map each schema slot to its vocab id so attention can be scattered into the vocab distribution.
         model.set_schema_vocab_ids(Tensor::upload(schema_vocab_ids, {schema_size, 1}));
 
-        // Schedule. Fresh run: peak LR 5e-5 (lowered from 1e-4 to stop the peak-LR loss spikes).
-        // Resume: load the best checkpoint and fine-tune gently (cold Adam, so low LR + short warmup).
-        int total_epochs = 500;
-        float peak_lr = 5e-5f;
+        // Schedule. Fresh run: peak LR 5e-4 (increased for much faster convergence).
+        int total_epochs = 200;
+        float peak_lr = 5e-4f;
         int warmup_override = -1; // -1 => fit() uses epochs/10
         if (resume) {
             std::cout << "Resuming from weights/schema_rag.bin (fine-tune mode)..." << std::endl;

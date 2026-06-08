@@ -88,7 +88,7 @@ def generate_dataset():
     if sep_id is None: sep_id = 1
 
     # EOS marks the end of the SQL target so the model learns to stop.
-    eos_id = tokenizer.token_to_id("[EOS]")
+    eos_id = tokenizer.token_to_id("[eos]")
     if eos_id is None: eos_id = unk_id
 
     # Full sub-token sequence per schema element, padded/truncated to max_schema_toks.
