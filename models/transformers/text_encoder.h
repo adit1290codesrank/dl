@@ -111,25 +111,19 @@ class TextEncoder : public Layer
             cached_pool_gsize = gsize;
 
             Tensor x = pooled.reshape({batch, n_elem, dim});
-
-            std::vector<float> pidx(batch * n_elem);
-            for(int b = 0; b < batch; ++b)
-                for(int t = 0; t < n_elem; ++t)
-                    pidx[b * n_elem + t] = (float)(t % seq_len);
-
-            x = x + pos_emb.forward(Tensor::upload(pidx, {batch, n_elem}));
             x = emb_drop.forward(x);
-
-            for(auto& blk : blocks) x = blk->forward(x);
+            
+            // WE MUST NOT APPLY TRANSFORMER BLOCKS HERE! 
+            // Applying self-attention across the 139 unordered schema elements mixes their vectors 
+            // and completely destroys their individual identities, confusing the pointer network!
+            
             return x;
         }
 
         Tensor backward_pooled(const Tensor& dY, float lr)
         {
             Tensor d = dY;
-            for(int i = depth - 1; i >= 0; --i) d = blocks[i]->backward(d, lr);
             d = emb_drop.backward(d, lr);
-            pos_emb.backward(d, lr);
 
             // Un-pool: broadcast each element's gradient back across its real (non-pad) sub-tokens.
             int num_groups = cached_pool_groups;
