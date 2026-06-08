@@ -272,6 +272,8 @@ class SchemaRAGNet
             std::ofstream log_file("loss_log.csv");
             log_file << "epoch,train_loss,val_loss,top1_acc,top5_acc,lr\n";
 
+            std::ofstream val_out("val_examples_log.txt");
+
             std::cout << "Starting SchemaRAG Training Loop..." << std::endl;
             auto t0 = std::chrono::high_resolution_clock::now();
 
@@ -416,7 +418,7 @@ class SchemaRAGNet
                     pred.shape = {actual_bs, seq_len, vocab_size};
                     
                     if (b == 0 && tokenizer != nullptr) {
-                        std::cout << "\n\n--- Epoch " << e << " Sample Validation Predictions ---" << std::endl;
+                        val_out << "\n\n--- Epoch " << e << " Sample Validation Predictions ---" << std::endl;
                         std::vector<float> h_pred = pred.download();
                         int num_samples = std::min(5, actual_bs);
                         for (int s = 0; s < num_samples; s++) {
@@ -445,11 +447,12 @@ class SchemaRAGNet
                                 }
                             }
                             
-                            std::cout << "Prompt: " << tokenizer->decode(prompt_ids) << std::endl;
-                            std::cout << "Target: " << tokenizer->decode(target_ids) << std::endl;
-                            std::cout << "Pred  : " << tokenizer->decode(pred_ids) << std::endl;
-                            std::cout << "---------------------------------------" << std::endl;
+                            val_out << "Prompt: " << tokenizer->decode(prompt_ids) << std::endl;
+                            val_out << "Target: " << tokenizer->decode(target_ids) << std::endl;
+                            val_out << "Pred  : " << tokenizer->decode(pred_ids) << std::endl;
+                            val_out << "---------------------------------------" << std::endl;
                         }
+                        val_out.flush();
                     }
                 }
                 
