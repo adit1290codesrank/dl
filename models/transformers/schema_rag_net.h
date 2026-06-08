@@ -72,6 +72,12 @@ class SchemaRAGNet
             pointer_layer = new PointerAttention(dimension, heads);
             final_ln = new LayerNorm(dimension);
             p_gen_proj = new Dense(dimension, 1);
+            
+            // Force initial p_gen to be high (~0.92) so the flat P_vocab distribution
+            // isn't immediately overwhelmed by the peaked P_schema distribution.
+            std::vector<float> b_init = {2.5f};
+            p_gen_proj->set_bias(Tensor::upload(b_init, {1, 1}));
+            
             sm = new Softmax();
         }
 

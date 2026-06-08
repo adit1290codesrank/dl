@@ -23,6 +23,8 @@ class Dense:public Layer
         Tensor forward(const Tensor& input) override;
         Tensor backward(const Tensor& grad,float learning_rate) override;
 
+        void set_bias(const Tensor& new_b) { b = new_b; }
+
         void save(std::ofstream& os) override;
         void load(std::ifstream& is) override;
 };
