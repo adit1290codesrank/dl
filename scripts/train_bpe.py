@@ -4,6 +4,7 @@ from tokenizers import Tokenizer
 from tokenizers.models import BPE
 from tokenizers.trainers import BpeTrainer
 from tokenizers.pre_tokenizers import Whitespace
+from tokenizers.normalizers import Lowercase
 
 def train_tokenizer():
     dataset_path = 'data/synthetic_dataset.json'
@@ -14,6 +15,20 @@ def train_tokenizer():
     with open(dataset_path, 'r') as f:
         data = json.load(f)
 
+    # Load all tables and columns
+    tables_path = 'all_tables.json'
+    schema_tokens = set()
+    if os.path.exists(tables_path):
+        with open(tables_path, 'r', encoding='utf-8') as f:
+            tables = json.load(f)
+            for item in tables:
+                t = item.get("TABLE_NAME", "")
+                c = item.get("COLUMN_NAME", "")
+                if t: schema_tokens.add(t.lower())
+                if c: schema_tokens.add(c.lower())
+
+    schema_tokens_list = list(schema_tokens)
+
     # Write all text to a temporary file for HuggingFace trainer
     corpus_path = "data/temp_corpus.txt"
     with open(corpus_path, "w", encoding="utf-8") as f:
@@ -22,13 +37,14 @@ def train_tokenizer():
             f.write(item["output"] + "\n")
 
     print("Training BPE Tokenizer...")
-    tokenizer = Tokenizer(BPE(unk_token="[UNK]"))
+    tokenizer = Tokenizer(BPE(unk_token="[unk]"))
+    tokenizer.normalizer = Lowercase()
     tokenizer.pre_tokenizer = Whitespace()
     
     # We use a vocab size of 2000. It's enough to capture T-SQL keywords and common Amazon Logistics terms,
     # while forcing it to split rare typos into subwords.
     # [EOS] appended last so [PAD]=0 / [UNK]=1 ids stay stable; gives the SQL target an explicit stop token.
-    trainer = BpeTrainer(special_tokens=["[PAD]", "[UNK]", "[CLS]", "[SEP]", "[EOS]"], vocab_size=2000)
+    trainer = BpeTrainer(special_tokens=["[pad]", "[unk]", "[cls]", "[sep]", "[eos]"] + schema_tokens_list, vocab_size=2000 + len(schema_tokens_list))
     
     tokenizer.train(files=[corpus_path], trainer=trainer)
     

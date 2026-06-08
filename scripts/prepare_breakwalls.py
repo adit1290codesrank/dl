@@ -9,13 +9,20 @@ def load_schema(filepath):
         tables = json.load(f)
     
     schema_elements = []
+    seen_tables = set()
     for item in tables:
         if item.get("INCLUDE_IN_MODEL", False):
             col_name = item.get("COLUMN_NAME", "")
             table_name = item.get("TABLE_NAME", "")
             synonyms = item.get("ALT_SYNONYMS", "")
-            desc = f"{table_name} {col_name} {synonyms if synonyms else ''}"
-            schema_elements.append(desc)
+            
+            if table_name and table_name not in seen_tables:
+                seen_tables.add(table_name)
+                schema_elements.append((f"TABLE {table_name}", table_name.lower()))
+                
+            if col_name:
+                desc = f"COLUMN {col_name} IN {table_name} {synonyms if synonyms else ''}"
+                schema_elements.append((desc, col_name.lower()))
             
     return schema_elements
 
@@ -60,7 +67,7 @@ def generate_dataset():
         out_ids = tokenizer.encode(out).ids
         tokenized_samples.append((inp_ids, out_ids))
         
-    schema_tokens_list = [tokenizer.encode(desc).ids for desc in schema_elements]
+    schema_tokens_list = [tokenizer.encode(desc).ids for desc, _ in schema_elements]
     
     n_train = int(len(tokenized_samples) * 0.8)
     n_val = len(tokenized_samples) - n_train
@@ -71,9 +78,9 @@ def generate_dataset():
     train_samples = tokenized_samples[:n_train]
     val_samples = tokenized_samples[n_train:]
     
-    pad_id = tokenizer.token_to_id("[PAD]")
+    pad_id = tokenizer.token_to_id("[pad]")
     if pad_id is None: pad_id = 0
-    unk_id = tokenizer.token_to_id("[UNK]")
+    unk_id = tokenizer.token_to_id("[unk]")
     if unk_id is None: unk_id = 1
     
     # We need a SEP token to divide English prompt from SQL target
@@ -86,10 +93,17 @@ def generate_dataset():
 
     # Full sub-token sequence per schema element, padded/truncated to max_schema_toks.
     schema_tok_matrix = []           # [schema_size, max_schema_toks]
-    schema_vocab_ids = []            # [schema_size] copy target = first sub-token id
-    for toks in schema_tokens_list:
+    schema_vocab_ids = []            # [schema_size] copy target = explicit token id
+    for i, toks in enumerate(schema_tokens_list):
+        _, target_word = schema_elements[i]
+        target_id = tokenizer.token_to_id(target_word)
+        if target_id is None:
+            print(f"Warning: target word '{target_word}' not found in vocab! Falling back to unk_id.")
+            target_id = unk_id
+            
+        schema_vocab_ids.append(target_id)
+        
         ids = toks[:max_schema_toks] if toks else [unk_id]
-        schema_vocab_ids.append(ids[0])
         ids = ids + [pad_id] * (max_schema_toks - len(ids))
         schema_tok_matrix.append(ids)
 
