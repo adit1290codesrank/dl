@@ -1,5 +1,6 @@
 #pragma once
 #include "text_encoder.h"
+#include "../../include/core/tokenizer.h"
 #include "../../include/layers/pointer_attention.h"
 #include "../../include/layers/dense.h"
 #include "../../include/layers/softmax.h"
@@ -254,7 +255,7 @@ class SchemaRAGNet
         void fit(const std::vector<float>& X, const std::vector<float>& Schema, const std::vector<float>& Y,
                  const std::vector<float>& X_val, const std::vector<float>& Schema_val, const std::vector<float>& Y_val,
                  int n, int n_val, int seq_len, int schema_size, int max_schema_toks, int vocab_size, int epochs, int bs, float lr,
-                 int warmup_override = -1)
+                 int warmup_override = -1, BPETokenizer* tokenizer = nullptr)
         {
             set_mode(true);
             int nb = n / bs;
@@ -413,6 +414,43 @@ class SchemaRAGNet
                     total_valid_tokens += b_total;
 
                     pred.shape = {actual_bs, seq_len, vocab_size};
+                    
+                    if (b == 0 && tokenizer != nullptr) {
+                        std::cout << "\n\n--- Epoch " << e << " Sample Validation Predictions ---" << std::endl;
+                        std::vector<float> h_pred = pred.download();
+                        int num_samples = std::min(5, actual_bs);
+                        for (int s = 0; s < num_samples; s++) {
+                            std::vector<int> prompt_ids;
+                            std::vector<int> target_ids;
+                            std::vector<int> pred_ids;
+                            
+                            for (int t = 0; t < seq_len; t++) {
+                                int y_val_id = (int)Y_val[b * bs * seq_len + s * seq_len + t];
+                                if (y_val_id == -100) {
+                                    prompt_ids.push_back((int)bX[s * seq_len + t]);
+                                } else {
+                                    target_ids.push_back(y_val_id);
+                                    
+                                    float max_logit = -1e9f;
+                                    int best_token = 0;
+                                    int base_idx = (s * seq_len + t) * vocab_size;
+                                    for (int v = 0; v < vocab_size; v++) {
+                                        float logit = h_pred[base_idx + v];
+                                        if (logit > max_logit) {
+                                            max_logit = logit;
+                                            best_token = v;
+                                        }
+                                    }
+                                    pred_ids.push_back(best_token);
+                                }
+                            }
+                            
+                            std::cout << "Prompt: " << tokenizer->decode(prompt_ids) << std::endl;
+                            std::cout << "Target: " << tokenizer->decode(target_ids) << std::endl;
+                            std::cout << "Pred  : " << tokenizer->decode(pred_ids) << std::endl;
+                            std::cout << "---------------------------------------" << std::endl;
+                        }
+                    }
                 }
                 
                 float val_loss = val_loss_sum / nb_val;

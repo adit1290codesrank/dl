@@ -1,4 +1,5 @@
 #include "../models/transformers/schema_rag_net.h"
+#include "../include/core/tokenizer.h"
 #include <iostream>
 #include <vector>
 #include <fstream>
@@ -87,9 +88,12 @@ int main(int argc, char** argv)
             warmup_override = 5;
         }
 
+        std::cout << "Loading Tokenizer for validation logs..." << std::endl;
+        BPETokenizer tokenizer("data/bpe_vocab.txt", "data/bpe_merges.txt");
+
         std::cout << "Starting Actual Backpropagation Loop..." << std::endl;
 
-        model.fit(X_train, Schema_train, Y_train, X_val, Schema_val, Y_val, n_train, n_val, seq_len, schema_size, max_schema_toks, vocab_size, total_epochs, 64, peak_lr, warmup_override);
+        model.fit(X_train, Schema_train, Y_train, X_val, Schema_val, Y_val, n_train, n_val, seq_len, schema_size, max_schema_toks, vocab_size, total_epochs, 64, peak_lr, warmup_override, &tokenizer);
 
         // fit() already checkpoints the best-val model to weights/schema_rag.bin each time it improves,
         // so a run can be stopped at any point. Save the final-epoch weights separately (don't clobber best).
