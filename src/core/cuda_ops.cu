@@ -1586,6 +1586,20 @@ void sigmoid_grad_mul_cuda(const float* s, float* dy, int size)
     sigmoid_grad_mul_kernel<<<bl, th>>>(s, dy, size);
 }
 
+__global__ void gate_entropy_regularization_kernel(float* dp_gen, const float* p_gen, float lambda, int size)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < size) {
+        dp_gen[idx] += lambda * (2.0f * p_gen[idx] - 1.0f);
+    }
+}
+
+void gate_entropy_regularization_cuda(float* dp_gen, const float* p_gen, float lambda, int size)
+{
+    int th = 256; int bl = (size + th - 1) / th;
+    gate_entropy_regularization_kernel<<<bl, th>>>(dp_gen, p_gen, lambda, size);
+}
+
 void cross_entropy_cuda(const float* pred, const float* targets_idx, float* dy, int batch_seq, int vocab_size, int valid_tokens)
 {
     int total_elements = batch_seq * vocab_size;

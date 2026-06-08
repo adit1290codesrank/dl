@@ -29,6 +29,7 @@ void blend_backward_dist_cuda(const float* p_gen, const float* dP_final, float* 
 void blend_backward_pgen_cuda(const float* P_vocab, const float* P_schema, const float* dP_final, float* dp_gen, int batch_seq, int V);
 void sigmoid_forward_cuda(float* data, int size);
 void sigmoid_grad_mul_cuda(const float* s, float* dy, int size);
+void gate_entropy_regularization_cuda(float* dp_gen, const float* p_gen, float lambda, int size);
 
 // SchemaRAGNet: Dual-Encoder pointer-generator for text→SQL.
 // Forward: query_encoder → cross_attn(Q, Schema) → residual → final_ln →
@@ -162,6 +163,10 @@ class SchemaRAGNet
 
             Tensor dp_gen(std::vector<int>{BT, 1});
             blend_backward_pgen_cuda(cached_P_vocab.data(), cached_P_schema.data(), dP_final.data(), dp_gen.data(), BT, V);
+
+            // Gate Entropy Regularization (pushes gate away from 0.0 and 1.0)
+            float gate_lambda = 0.01f;
+            gate_entropy_regularization_cuda(dp_gen.data(), cached_pgen.data(), gate_lambda, BT);
 
             // 3. Generate branch: real softmax Jacobian → tied projection.
             Tensor dvocab_logits(std::vector<int>{BT, V});
