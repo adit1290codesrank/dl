@@ -162,7 +162,7 @@ def generate_dataset():
         write_set(f, val_samples, n_val)
         
     with open(os.path.join(out_dir, "schema_strings.txt"), "w", encoding="utf-8") as f:
-        for desc in schema_elements:
+        for desc, _ in schema_elements:
             f.write(desc.lower().replace('\n', ' ') + '\n')
             
     with open(os.path.join(out_dir, "jargon_dict.txt"), "w", encoding="utf-8") as f:
