@@ -1889,7 +1889,7 @@ __global__ void mask_generator_logits_kernel(float* logits, int batch_seq, int v
     }
 }
 
-extern "C" void mask_generator_logits_cuda(float* logits, int batch_seq, int vocab_size, int bpe_vocab_size) {
+void mask_generator_logits_cuda(float* logits, int batch_seq, int vocab_size, int bpe_vocab_size) {
     int threads = 256;
     int blocks = (batch_seq + threads - 1) / threads;
     mask_generator_logits_kernel<<<blocks, threads>>>(logits, batch_seq, vocab_size, bpe_vocab_size);
