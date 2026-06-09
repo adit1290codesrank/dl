@@ -78,6 +78,7 @@ int main(int argc, char** argv)
         // Schedule. Fresh run: peak LR 5e-5 (lowered to stop peak-LR loss spikes).
         int total_epochs = 200;
         float peak_lr = 5e-5f;
+        int batch_size = 64;
         int warmup_override = -1; // -1 => fit() uses epochs/10
         if (resume) {
             std::cout << "Resuming from weights/schema_rag.bin (fine-tune mode)..." << std::endl;
@@ -86,13 +87,20 @@ int main(int argc, char** argv)
             peak_lr = 3e-5f;
             warmup_override = 5;
         }
+        
+        if (n_train < 1000) {
+            std::cout << "Detected MINI dataset. Adjusting schedule..." << std::endl;
+            total_epochs = 500;
+            peak_lr = 5e-4f;
+            batch_size = 8;
+        }
 
         std::cout << "Loading Tokenizer for validation logs..." << std::endl;
         BPETokenizer tokenizer("data/bpe_vocab.txt", "data/bpe_merges.txt");
 
         std::cout << "Starting Actual Backpropagation Loop..." << std::endl;
 
-        model.fit(X_train, Schema_train, Y_train, X_val, Schema_val, Y_val, n_train, n_val, seq_len, schema_size, max_schema_toks, vocab_size, total_epochs, 64, peak_lr, warmup_override, &tokenizer);
+        model.fit(X_train, Schema_train, Y_train, X_val, Schema_val, Y_val, n_train, n_val, seq_len, schema_size, max_schema_toks, vocab_size, total_epochs, batch_size, peak_lr, warmup_override, &tokenizer);
 
         // fit() already checkpoints the best-val model to weights/schema_rag.bin each time it improves,
         // so a run can be stopped at any point. Save the final-epoch weights separately (don't clobber best).

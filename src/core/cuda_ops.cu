@@ -1612,6 +1612,76 @@ void gate_entropy_regularization_cuda(float* dp_gen, const float* p_gen, float l
     gate_entropy_regularization_kernel<<<bl, th>>>(dp_gen, p_gen, lambda, size);
 }
 
+__global__ void vocab_logits_grad_kernel(const float* P_vocab, const float* targets_idx, float* d_logits, int batch_seq, int V, int valid_tokens) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < batch_seq * V) {
+        int bt = idx / V;
+        int v = idx % V;
+        int target = (int)targets_idx[bt];
+        if (target == -100 || target >= 50000) {
+            d_logits[idx] = 0.0f;
+        } else {
+            float t_v = (v == target) ? 1.0f : 0.0f;
+            d_logits[idx] = (P_vocab[idx] - t_v) / (float)valid_tokens;
+        }
+    }
+}
+
+void vocab_logits_grad_cuda(const float* P_vocab, const float* targets_idx, float* d_logits, int batch_seq, int V, int valid_tokens) {
+    int total = batch_seq * V;
+    int th = 256; int bl = (total + th - 1) / th;
+    vocab_logits_grad_kernel<<<bl, th>>>(P_vocab, targets_idx, d_logits, batch_seq, V, valid_tokens);
+}
+
+__global__ void attn_logits_grad_kernel(const float* P_attn, const float* P_attn_mean, const float* schema_vocab_ids, const float* targets_idx, float* d_logits, int batch, int heads, int seq, int S, int valid_tokens) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total = batch * heads * seq * S;
+    if (idx < total) {
+        int s = idx % S;
+        int t = (idx / S) % seq;
+        int h = (idx / (S * seq)) % heads;
+        int n = idx / (S * seq * heads);
+        int bt = n * seq + t;
+        
+        int target = (int)targets_idx[bt];
+        if (target == -100 || target < 50000) {
+            d_logits[idx] = 0.0f;
+            return;
+        }
+        
+        int target_s = -1;
+        for (int i = 0; i < S; ++i) {
+            if ((int)schema_vocab_ids[i] == target) {
+                target_s = i;
+                break;
+            }
+        }
+        
+        if (target_s == -1) {
+            d_logits[idx] = 0.0f;
+            return;
+        }
+        
+        float P_h_target = P_attn[(n * heads + h) * seq * S + t * S + target_s];
+        float P_mean_target = P_attn_mean[bt * S + target_s];
+        
+        float R = 0.0f;
+        if (P_mean_target > 1e-7f) {
+            R = P_h_target / ((float)heads * P_mean_target);
+        }
+        
+        float t_s = (s == target_s) ? 1.0f : 0.0f;
+        float g = R * (P_attn[idx] - t_s);
+        d_logits[idx] = g / (float)valid_tokens;
+    }
+}
+
+void attn_logits_grad_cuda(const float* P_attn, const float* P_attn_mean, const float* schema_vocab_ids, const float* targets_idx, float* d_logits, int batch, int heads, int seq, int S, int valid_tokens) {
+    int total = batch * heads * seq * S;
+    int th = 256; int bl = (total + th - 1) / th;
+    attn_logits_grad_kernel<<<bl, th>>>(P_attn, P_attn_mean, schema_vocab_ids, targets_idx, d_logits, batch, heads, seq, S, valid_tokens);
+}
+
 void cross_entropy_cuda(const float* pred, const float* targets_idx, float* dy, int batch_seq, int vocab_size, int valid_tokens)
 {
     int total_elements = batch_seq * vocab_size;

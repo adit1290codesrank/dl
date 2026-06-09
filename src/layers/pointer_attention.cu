@@ -284,7 +284,7 @@ Tensor PointerAttention::backward(const Tensor& grad, float lr) {
     return backward_ext(grad, lr, nullptr);
 }
 
-Tensor PointerAttention::backward_ext(const Tensor& grad, float lr, const Tensor* d_attn_ext) {
+Tensor PointerAttention::backward_ext(const Tensor& grad, float lr, const Tensor* d_scores_ext) {
     t++;
     int D = cached_query.shape.back();
     int N = (cached_query.shape.size() == 3) ? cached_query.shape[0] : 1;
@@ -294,7 +294,6 @@ Tensor PointerAttention::backward_ext(const Tensor& grad, float lr, const Tensor
 
     Tensor dY_flat = grad.reshape({N*T_q, D});
 
-    // Recompute merged heads output (what actually went INTO wO during forward)
     Tensor context_recomp(std::vector<int>{N*heads, T_q, head_dim});
     batched_matmul_cuda(cached_attention.data(), false, cachedV.data(), false, context_recomp.data(), N*heads, T_q, T_k, head_dim);
     Tensor merged_recomp(N*T_q, D);
@@ -309,15 +308,15 @@ Tensor PointerAttention::backward_ext(const Tensor& grad, float lr, const Tensor
     Tensor dAttn(std::vector<int>{N*heads, T_q, T_k});
     batched_matmul_cuda(dContext.data(), false, cachedV.data(), true, dAttn.data(), N*heads, T_q, head_dim, T_k);
 
-    if (d_attn_ext != nullptr) {
-        dAttn = dAttn + *d_attn_ext;
-    }
-
     Tensor dVh(std::vector<int>{N*heads, T_k, head_dim});
     batched_matmul_cuda(cached_attention.data(), true, dContext.data(), false, dVh.data(), N*heads, T_k, T_q, head_dim);
 
     Tensor dScores(std::vector<int>{N*heads, T_q, T_k});
     full_attention_softmax_backward_cuda(dAttn.data(), cached_attention.data(), dScores.data(), N*heads*T_q, T_k);
+
+    if (d_scores_ext != nullptr) {
+        dScores = dScores + *d_scores_ext;
+    }
 
     attention_scale_cuda(dScores.data(), scale, N*heads*T_q*T_k);
 

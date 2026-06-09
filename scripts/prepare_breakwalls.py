@@ -27,6 +27,7 @@ def load_schema(filepath):
     return schema_elements
 
 def generate_dataset():
+    import sys
     base_dir = os.path.dirname(os.path.abspath(__file__))
     tables_path = os.path.join(base_dir, "..", "all_tables.json")
     samples_path = os.path.join(base_dir, "..", "data", "synthetic_dataset.json")
@@ -55,6 +56,10 @@ def generate_dataset():
     print("Loading synthetic dataset...")
     with open(samples_path, 'r', encoding='utf-8') as f:
         samples = json.load(f)
+        
+    if "--mini" in sys.argv:
+        print("MINI MODE: Slicing dataset to first 100 samples!")
+        samples = samples[:100]
         
     print(f"Tokenizing {len(samples)} examples with BPE...")
     import re
