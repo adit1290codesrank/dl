@@ -1506,17 +1506,29 @@ __global__ void blend_backward_dist_kernel(const float* p_gen, const float* dP_f
     }
 }
 
-// dp_gen[bt] = sum_v (P_vocab - P_schema) * dP_final.
-__global__ void blend_backward_pgen_kernel(const float* P_vocab, const float* P_schema, const float* dP_final, float* dp_gen, int batch_seq, int V)
+__global__ void blend_backward_pgen_kernel(const float* p_gen, const float* targets_idx, float* dp_gen, int batch_seq, int valid_tokens)
 {
     int bt = blockIdx.x * blockDim.x + threadIdx.x;
     if (bt < batch_seq) {
-        float s = 0.0f;
-        for (int v = 0; v < V; ++v) {
-            int i = bt * V + v;
-            s += (P_vocab[i] - P_schema[i]) * dP_final[i];
+        int target = (int)targets_idx[bt];
+        if (target == -100) {
+            dp_gen[bt] = 0.0f;
+            return;
         }
-        dp_gen[bt] = s;
+        
+        float pg = p_gen[bt];
+        pg = fmaxf(1e-7f, fminf(1.0f - 1e-7f, pg));
+        
+        float g = 0.0f;
+        if (target < 50000) {
+            // Target is vocab, optimal p_gen is 1.0. Derivative of -log(p_gen)
+            g = -1.0f / pg;
+        } else {
+            // Target is schema, optimal p_gen is 0.0. Derivative of -log(1 - p_gen)
+            g = 1.0f / (1.0f - pg);
+        }
+        
+        dp_gen[bt] = g / (float)valid_tokens;
     }
 }
 
@@ -1570,10 +1582,10 @@ void blend_backward_dist_cuda(const float* p_gen, const float* dP_final, float* 
     int total = batch_seq * V; int th = 256; int bl = (total + th - 1) / th;
     blend_backward_dist_kernel<<<bl, th>>>(p_gen, dP_final, dP_vocab, dP_schema, batch_seq, V);
 }
-void blend_backward_pgen_cuda(const float* P_vocab, const float* P_schema, const float* dP_final, float* dp_gen, int batch_seq, int V)
+void blend_backward_pgen_cuda(const float* p_gen, const float* targets_idx, float* dp_gen, int batch_seq, int valid_tokens)
 {
     int th = 256; int bl = (batch_seq + th - 1) / th;
-    blend_backward_pgen_kernel<<<bl, th>>>(P_vocab, P_schema, dP_final, dp_gen, batch_seq, V);
+    blend_backward_pgen_kernel<<<bl, th>>>(p_gen, targets_idx, dp_gen, batch_seq, valid_tokens);
 }
 void sigmoid_forward_cuda(float* data, int size)
 {

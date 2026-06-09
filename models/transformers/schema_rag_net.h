@@ -27,7 +27,7 @@ void copy_gather_cuda(const float* dP_schema, const float* vocab_ids, float* d_a
 void blend_forward_cuda(const float* p_gen, const float* P_vocab, const float* P_schema, float* P_final, int batch_seq, int V);
 void ce_prob_grad_cuda(const float* P_final, const float* targets_idx, float* dP, int batch_seq, int V, int valid_tokens);
 void blend_backward_dist_cuda(const float* p_gen, const float* dP_final, float* dP_vocab, float* dP_schema, int batch_seq, int V);
-void blend_backward_pgen_cuda(const float* P_vocab, const float* P_schema, const float* dP_final, float* dp_gen, int batch_seq, int V);
+void blend_backward_pgen_cuda(const float* p_gen, const float* targets_idx, float* dp_gen, int batch_seq, int valid_tokens);
 void sigmoid_forward_cuda(float* data, int size);
 void sigmoid_grad_mul_cuda(const float* s, float* dy, int size);
 void gate_entropy_regularization_cuda(float* dp_gen, const float* p_gen, float lambda, int size);
@@ -174,13 +174,10 @@ class SchemaRAGNet
             blend_backward_dist_cuda(cached_pgen.data(), dP_final.data(), dP_vocab.data(), dP_schema.data(), BT, V);
 
             Tensor dp_gen(std::vector<int>{BT, 1});
-            blend_backward_pgen_cuda(cached_P_vocab.data(), cached_P_schema.data(), dP_final.data(), dp_gen.data(), BT, V);
-
-            // Gate Entropy Regularization (pushes gate away from 0.0 and 1.0)
-            float gate_lambda = 0.01f;
-            gate_entropy_regularization_cuda(dp_gen.data(), cached_pgen.data(), gate_lambda, BT);
+            blend_backward_pgen_cuda(cached_pgen.data(), targets_idx.data(), dp_gen.data(), BT, valid_tokens);
 
             // 3. Generate branch: real softmax Jacobian → tied projection.
+            sigmoid_grad_mul_cuda(cached_pgen.data(), dp_gen.data(), BT); 
             Tensor dvocab_logits(std::vector<int>{BT, V});
             full_attention_softmax_backward_cuda(dP_vocab.data(), cached_P_vocab.data(), dvocab_logits.data(), BT, V);
 
