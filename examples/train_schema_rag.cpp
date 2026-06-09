@@ -76,7 +76,7 @@ int main(int argc, char** argv)
         model.set_schema_vocab_ids(Tensor::upload(schema_vocab_ids, {schema_size, 1}));
 
         // Schedule. Fresh run: peak LR 5e-5 (lowered to stop peak-LR loss spikes).
-        int total_epochs = 500;
+        int total_epochs = 200;
         float peak_lr = 5e-5f;
         int warmup_override = -1; // -1 => fit() uses epochs/10
         if (resume) {

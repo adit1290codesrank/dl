@@ -31,7 +31,7 @@ void blend_backward_pgen_cuda(const float* P_vocab, const float* P_schema, const
 void sigmoid_forward_cuda(float* data, int size);
 void sigmoid_grad_mul_cuda(const float* s, float* dy, int size);
 void gate_entropy_regularization_cuda(float* dp_gen, const float* p_gen, float lambda, int size);
-
+void mask_generator_logits_cuda(float* logits, int batch_seq, int vocab_size, int bpe_vocab_size);
 // SchemaRAGNet: Dual-Encoder pointer-generator for text→SQL.
 // Forward: query_encoder → cross_attn(Q, Schema) → residual → final_ln →
 //   { tied vocab proj → softmax = P_vocab ; sigmoid gate p_gen ; schema attention scatter = P_schema }
@@ -129,6 +129,11 @@ class SchemaRAGNet
             // ---- Generate branch: tied vocab projection → softmax ----
             Tensor W_emb = query_encoder->token_embedding().weight();   // [vocab, dim]
             Tensor vocab_logits = matrix_multiply(ln_out, false, W_emb, true); // [BT, vocab]
+            
+            // Mask out the schema tokens (id >= 50000) from the generator branch
+            // so the model is FORCED to use the pointer network for them.
+            mask_generator_logits_cuda(vocab_logits.data(), BT, vocab_size, 50000);
+            
             Tensor P_vocab = sm->forward(vocab_logits);
             cached_P_vocab = P_vocab;
 

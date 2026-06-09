@@ -1879,3 +1879,20 @@ extern "C" void pointer_blend_backward_cuda(const float* d_final, const float* p
     pointer_blend_backward_kernel<<<numBlocks, BLOCK_SIZE>>>(d_final, p_vocab, p_copy, p_gen, schema_ids, d_vocab, d_copy, d_pgen, N, T_q, vocab_size, T_k);
     cudaDeviceSynchronize();
 }
+
+__global__ void mask_generator_logits_kernel(float* logits, int batch_seq, int vocab_size, int bpe_vocab_size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < batch_seq) {
+        for (int i = bpe_vocab_size; i < vocab_size; i++) {
+            logits[idx * vocab_size + i] = -1e9f;
+        }
+    }
+}
+
+extern "C" void mask_generator_logits_cuda(float* logits, int batch_seq, int vocab_size, int bpe_vocab_size) {
+    int threads = 256;
+    int blocks = (batch_seq + threads - 1) / threads;
+    mask_generator_logits_kernel<<<blocks, threads>>>(logits, batch_seq, vocab_size, bpe_vocab_size);
+    cudaDeviceSynchronize();
+}
+
