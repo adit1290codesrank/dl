@@ -1662,16 +1662,14 @@ __global__ void attn_logits_grad_kernel(const float* P_attn, const float* P_attn
             return;
         }
         
-        float P_h_target = P_attn[(n * heads + h) * seq * S + t * S + target_s];
-        float P_mean_target = P_attn_mean[bt * S + target_s];
-        
-        float R = 0.0f;
-        if (P_mean_target > 1e-7f) {
-            R = P_h_target / ((float)heads * P_mean_target);
-        }
-        
         float t_s = (s == target_s) ? 1.0f : 0.0f;
-        float g = R * (P_attn[idx] - t_s);
+        
+        // We bypass the exact Softmax Jacobian ratio (R = P_h / P_mean).
+        // If a head has 0 probability for the target, R=0 and it receives NO gradient to correct itself (vanishing gradient).
+        // By replacing it with a flat 1/heads, we treat this as the Mean of Cross Entropies instead of Cross Entropy of the Mean.
+        // This provides a massive, pristine unattenuated gradient to EVERY head that is pointing at the wrong token!
+        float g = (P_attn[idx] - t_s) / (float)heads;
+        
         d_logits[idx] = g / (float)valid_tokens;
     }
 }

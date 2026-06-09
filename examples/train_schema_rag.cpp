@@ -91,7 +91,7 @@ int main(int argc, char** argv)
         if (n_train < 1000) {
             std::cout << "Detected MINI dataset. Adjusting schedule..." << std::endl;
             total_epochs = 500;
-            peak_lr = 5e-4f;
+            peak_lr = 5e-5f; // Lowered from 5e-4 to prevent blowout
             batch_size = 8;
         }
 
