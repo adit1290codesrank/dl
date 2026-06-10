@@ -203,7 +203,12 @@ def train(args):
 
     optimizer = optim.AdamW(model.parameters(), lr=1e-6)
     criterion = nn.NLLLoss(ignore_index=-100)
-    use_amp = device.type == "cuda"
+    # fp32 only. The pointer-generator head computes log(P_final + 1e-9); its
+    # gradient is 1/(P+eps) which can spike to ~1e9 on a confident-but-wrong
+    # token. fp16 (autocast) overflows that to inf -> nan and poisons the
+    # weights (this is what killed the run at epoch 43). At 4.9M params fp16
+    # saves nothing on a T4, so we drop it entirely.
+    use_amp = False
 
     log_path = os.path.join(BASE, "loss_log_fusion.csv")
     # Append mode: resuming a run continues the same log.
@@ -227,6 +232,7 @@ def train(args):
             g['lr'] = lr
 
         total_loss = 0.0
+        n_steps = 0
         t0 = time.time()
         for X, Y in train_loader:
             X, Y = X.to(device), Y.to(device)
@@ -234,11 +240,18 @@ def train(args):
             with torch.amp.autocast('cuda', enabled=use_amp):
                 log_probs, _ = model(X, mem_tokens, mem_emit_ids)
             loss = criterion(log_probs.view(-1, data["V"]), Y.view(-1))
+            # Insurance for an unattended run: never let a non-finite loss
+            # poison the weights -- drop that step and carry on.
+            if not torch.isfinite(loss):
+                print(f"  [warn] non-finite loss at epoch {epoch}, step {n_steps} -- skipped")
+                optimizer.zero_grad()
+                continue
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
             total_loss += loss.item()
-        train_loss = total_loss / len(train_loader)
+            n_steps += 1
+        train_loss = total_loss / max(1, n_steps)
 
         # ---- validation ----
         model.eval()
@@ -344,8 +357,23 @@ def evaluate(args):
     val_X, val_Y = data["val"]
     seq_len = data["seq_len"]
 
-    jargon_terms = ["MPY", "ASM", "RSM", "SSM", "NSM"]
-    stats = {t: [0, 0] for t in jargon_terms}  # term -> [exact, total]
+    # Per-jargon breakdown driven by jargon_fusion.json so it covers every
+    # term we actually trained on (procedures, time expressions, synonyms),
+    # not just the original 5. Each entry is labelled by its first key and
+    # matched against the prompt by ANY of its key phrases.
+    import json
+    jpath = os.path.join(BASE, "jargon_fusion.json")
+    if os.path.exists(jpath):
+        with open(jpath, encoding="utf-8") as jf:
+            jentries = json.load(jf)
+        jargon_specs = [(e["keys"][0],
+                         [re.compile(r'(?<!\w)' + re.escape(k.lower()) + r'(?!\w)')
+                          for k in e["keys"]])
+                        for e in jentries]
+    else:
+        jargon_specs = [(t, [re.compile(r'\b' + t.lower() + r'\b')])
+                        for t in ["MPY", "ASM", "RSM", "SSM", "NSM"]]
+    stats = {label: [0, 0] for label, _ in jargon_specs}  # label -> [exact, total]
     exact = wf = tok_exact = n = 0
     shown = 0
 
@@ -378,10 +406,11 @@ def evaluate(args):
             tok_exact += gen == tgt_ids
             wf += well_formed(pred_sql)
             n += 1
-            for t in jargon_terms:
-                if re.search(r'\b' + t.lower() + r'\b', prompt_txt):
-                    stats[t][1] += 1
-                    stats[t][0] += ok
+            plo = prompt_txt.lower()
+            for label, pats in jargon_specs:
+                if any(p.search(plo) for p in pats):
+                    stats[label][1] += 1
+                    stats[label][0] += ok
 
             if shown < args.show and not ok:
                 shown += 1
@@ -394,10 +423,10 @@ def evaluate(args):
     print(f"Exact match (whitespace-normalized): {100 * exact / max(1, n):.2f}%")
     print(f"Token-sequence exact match:          {100 * tok_exact / max(1, n):.2f}%")
     print(f"Well-formed SQL:                     {100 * wf / max(1, n):.2f}%")
-    print("Per-jargon exact match:")
-    for t, (e, tot) in stats.items():
+    print("Per-jargon exact match (val prompts containing the term):")
+    for label, (e, tot) in sorted(stats.items(), key=lambda kv: -kv[1][1]):
         if tot:
-            print(f"  {t}: {e}/{tot} ({100 * e / tot:.1f}%)")
+            print(f"  {label:32s}: {e}/{tot} ({100 * e / tot:.1f}%)")
 
 
 if __name__ == "__main__":
