@@ -15,19 +15,10 @@ def train_tokenizer():
     with open(dataset_path, 'r') as f:
         data = json.load(f)
 
-    # Load all tables and columns
-    tables_path = 'all_tables.json'
-    schema_tokens = set()
-    if os.path.exists(tables_path):
-        with open(tables_path, 'r', encoding='utf-8') as f:
-            tables = json.load(f)
-            for item in tables:
-                t = item.get("TABLE_NAME", "")
-                c = item.get("COLUMN_NAME", "")
-                if t: schema_tokens.add(t.lower())
-                if c: schema_tokens.add(c.lower())
-
-    schema_tokens_list = list(schema_tokens)
+    # NOTE: schema table/column names are deliberately NOT special tokens anymore.
+    # They are emitted exclusively through the pointer/copy head as atomic IDs
+    # appended after the BPE vocab (see prepare_fusion.py). If the generator could
+    # spell them, the copy mechanism would never be forced to learn schema linking.
 
     # Write all text to a temporary file for HuggingFace trainer
     corpus_path = "data/temp_corpus.txt"
@@ -44,7 +35,7 @@ def train_tokenizer():
     # We use a vocab size of 2000. It's enough to capture T-SQL keywords and common Amazon Logistics terms,
     # while forcing it to split rare typos into subwords.
     # [EOS] appended last so [PAD]=0 / [UNK]=1 ids stay stable; gives the SQL target an explicit stop token.
-    trainer = BpeTrainer(special_tokens=["[pad]", "[unk]", "[cls]", "[sep]", "[eos]"] + schema_tokens_list, vocab_size=2000 + len(schema_tokens_list))
+    trainer = BpeTrainer(special_tokens=["[pad]", "[unk]", "[cls]", "[sep]", "[eos]"], vocab_size=2000)
     
     tokenizer.train(files=[corpus_path], trainer=trainer)
     

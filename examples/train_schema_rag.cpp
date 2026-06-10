@@ -10,7 +10,7 @@ void load_breakwalls_dataset(const std::string& path, int& n_train, int& n_val, 
                              std::vector<float>& X_train, std::vector<float>& Schema_train, std::vector<float>& Y_train,
                              std::vector<float>& X_val, std::vector<float>& Schema_val, std::vector<float>& Y_val,
                              std::vector<float>& schema_vocab_ids)
-{
+{   
     std::ifstream file(path, std::ios::binary);
     if(!file.is_open()) throw std::runtime_error("Could not open " + path);
 
@@ -75,23 +75,23 @@ int main(int argc, char** argv)
         // Copy-head: map each schema slot to its vocab id so attention can be scattered into the vocab distribution.
         model.set_schema_vocab_ids(Tensor::upload(schema_vocab_ids, {schema_size, 1}));
 
-        // Schedule. Fresh run: peak LR 5e-5 (lowered to stop peak-LR loss spikes).
+        // Schedule. Exactly matched to the PyTorch implementation!
         int total_epochs = 200;
-        float peak_lr = 5e-5f;
+        float peak_lr = 2.5e-4f;
         int batch_size = 64;
-        int warmup_override = -1; // -1 => fit() uses epochs/10
+        int warmup_override = 20; // 20 epochs linear warmup
         if (resume) {
             std::cout << "Resuming from weights/schema_rag.bin (fine-tune mode)..." << std::endl;
             model.load("weights/schema_rag.bin");
             total_epochs = 150;
-            peak_lr = 3e-5f;
+            peak_lr = 1e-4f;
             warmup_override = 5;
         }
         
         if (n_train < 1000) {
             std::cout << "Detected MINI dataset. Adjusting schedule..." << std::endl;
             total_epochs = 500;
-            peak_lr = 5e-5f; // Lowered from 5e-4 to prevent blowout
+            peak_lr = 2.5e-4f; 
             batch_size = 8;
         }
 

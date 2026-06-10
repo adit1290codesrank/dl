@@ -165,46 +165,56 @@ class SchemaRAGNet
             int batch = cached_batch, seq = cached_seq, S = cached_schema_size;
             int BT = batch * seq, V = vocab_size;
 
-            // 1. Generate branch logit gradients.
-            Tensor dvocab_logits(std::vector<int>{BT, V});
-            vocab_logits_grad_cuda(cached_P_vocab.data(), targets_idx.data(), dvocab_logits.data(), BT, V, valid_tokens);
+            // 1. CE Probability gradient: dP_final = -T / P_final
+            Tensor dP_final(std::vector<int>{BT, V});
+            ce_prob_grad_cuda(cached_P_final.data(), targets_idx.data(), dP_final.data(), BT, V, valid_tokens);
 
-            // 2. Copy Gate (p_gen) gradient.
+            // 2. Split blend: dP_vocab and dP_schema
+            Tensor dP_vocab(std::vector<int>{BT, V});
+            Tensor dP_schema(std::vector<int>{BT, V});
+            blend_backward_dist_cuda(cached_pgen.data(), dP_final.data(), dP_vocab.data(), dP_schema.data(), BT, V);
+
+            // 3. Vocab Softmax Jacobian -> dvocab_logits
+            Tensor dvocab_logits(std::vector<int>{BT, V});
+            full_attention_softmax_backward_cuda(dP_vocab.data(), cached_P_vocab.data(), dvocab_logits.data(), BT, V);
+
+            // 4. Schema Softmax Jacobian -> d_attn_logits
+            Tensor d_attn_mean(std::vector<int>{BT, S});
+            copy_gather_cuda(dP_schema.data(), schema_vocab_ids.data(), d_attn_mean.data(), BT, S, V);
+            
+            Tensor d_attn_probs(std::vector<int>{batch * heads, seq, S});
+            expand_heads_attn_cuda(d_attn_mean.data(), d_attn_probs.data(), batch, heads, seq, S);
+
+            Tensor d_attn_logits(std::vector<int>{batch * heads, seq, S});
+            full_attention_softmax_backward_cuda(d_attn_probs.data(), pointer_layer->get_attention().data(), d_attn_logits.data(), batch * heads * seq, S);
+
+            // 5. Copy Gate (p_gen) gradient.
             Tensor dp_gen(std::vector<int>{BT, 1});
             blend_backward_pgen_cuda(cached_pgen.data(), targets_idx.data(), dp_gen.data(), BT, valid_tokens);
 
-            // 3. Generate branch backward
+            // 6. Generate branch backward
             Tensor W_emb = query_encoder->token_embedding().weight();
             Tensor dW_emb = matrix_multiply(dvocab_logits, true, cached_proj_in, false); // [V, dim]
             query_encoder->token_embedding().add_external_grad(dW_emb);
             Tensor dctx_vocab = matrix_multiply(dvocab_logits, false, W_emb, false);      // [BT, dim]
 
-            // 4. p_gen branch: sigmoid backward → Dense(dim,1).
+            // 7. p_gen branch: sigmoid backward → Dense(dim,1).
             sigmoid_grad_mul_cuda(cached_pgen.data(), dp_gen.data(), BT); // dp_gen → d(logit)
             Tensor dctx_pgen = p_gen_proj->backward(dp_gen, lr);          // [BT, dim]
 
-            // 5. Combine grads into ln_out, then through final LayerNorm.
+            // 8. Combine grads into ln_out, then through final LayerNorm.
             Tensor dln = matrix_add(dctx_vocab, dctx_pgen);
             Tensor dctx = final_ln->backward(dln, lr);                    // [BT, dim]
             dctx.shape = {batch, seq, dimension};
 
-            // 6. Copy branch: schema attention logit gradients.
-            // We need P_attn_mean to compute the correct weighted gradients across heads.
-            Tensor P_attn_mean(std::vector<int>{BT, S});
-            reduce_heads_attn_cuda(pointer_layer->get_attention().data(), P_attn_mean.data(), batch, heads, seq, S);
-
-            Tensor d_attn_logits(std::vector<int>{batch * heads, seq, S});
-            attn_logits_grad_cuda(pointer_layer->get_attention().data(), P_attn_mean.data(), schema_vocab_ids.data(), targets_idx.data(), d_attn_logits.data(), batch, heads, seq, S, valid_tokens);
-
-            // 7. Pointer backward (grad w.r.t. context_ptr = dctx; plus copy-attention grad).
+            // 9. Pointer backward (grad w.r.t. context_ptr = dctx; plus copy-attention grad).
             Tensor d_query = pointer_layer->backward_ext(dctx, lr, &d_attn_logits);
             d_query.shape = {batch, seq, dimension};
 
-            // 8. Residual: Q_emb received both the pointer-path grad and the direct context grad.
+            // 10. Residual: Q_emb received both the pointer-path grad and the direct context grad.
             Tensor dQ_emb = matrix_add(d_query, dctx);
 
-
-            // 9. Schema encoder (pooled) and query encoder.
+            // 11. Schema encoder (pooled) and query encoder.
             Tensor dSchema = pointer_layer->get_schema_grad();
             schema_encoder->backward_pooled(dSchema, lr);
             query_encoder->backward(dQ_emb, lr);
