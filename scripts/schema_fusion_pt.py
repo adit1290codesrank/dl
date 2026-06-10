@@ -373,9 +373,17 @@ def evaluate(args):
     else:
         jargon_specs = [(t, [re.compile(r'\b' + t.lower() + r'\b')])
                         for t in ["MPY", "ASM", "RSM", "SSM", "NSM"]]
-    stats = {label: [0, 0] for label, _ in jargon_specs}  # label -> [exact, total]
-    exact = wf = tok_exact = n = 0
+    stats = {label: [0, 0, 0] for label, _ in jargon_specs}  # label -> [exact, value_blind, total]
+    exact = exact_vb = wf = tok_exact = n = 0
     shown = 0
+
+    def value_blind(s):
+        # Mask quoted literals and bare numbers, then squash. Isolates
+        # "got the SQL structure + schema right" from "transcribed the
+        # literal dates/ids right" -- two very different failure modes.
+        s = re.sub(r"'[^']*'", "'<V>'", s)
+        s = re.sub(r"\d+", "<N>", s)
+        return squash(s)
 
     with torch.no_grad():
         for i in range(len(val_X)):
@@ -402,15 +410,18 @@ def evaluate(args):
             prompt_txt = tokenizer.decode(val_X[i][:p].tolist())
 
             ok = squash(pred_sql) == squash(gold_sql)
+            ok_vb = value_blind(pred_sql) == value_blind(gold_sql)
             exact += ok
+            exact_vb += ok_vb
             tok_exact += gen == tgt_ids
             wf += well_formed(pred_sql)
             n += 1
             plo = prompt_txt.lower()
             for label, pats in jargon_specs:
                 if any(p.search(plo) for p in pats):
-                    stats[label][1] += 1
+                    stats[label][2] += 1
                     stats[label][0] += ok
+                    stats[label][1] += ok_vb
 
             if shown < args.show and not ok:
                 shown += 1
@@ -421,17 +432,95 @@ def evaluate(args):
 
     print(f"\nVal examples: {n}")
     print(f"Exact match (whitespace-normalized): {100 * exact / max(1, n):.2f}%")
+    print(f"Exact match VALUE-BLIND (literals masked): {100 * exact_vb / max(1, n):.2f}%")
     print(f"Token-sequence exact match:          {100 * tok_exact / max(1, n):.2f}%")
     print(f"Well-formed SQL:                     {100 * wf / max(1, n):.2f}%")
-    print("Per-jargon exact match (val prompts containing the term):")
-    for label, (e, tot) in sorted(stats.items(), key=lambda kv: -kv[1][1]):
+    print("Per-jargon exact / value-blind (val prompts containing the term):")
+    for label, (e, evb, tot) in sorted(stats.items(), key=lambda kv: -kv[1][2]):
         if tot:
-            print(f"  {label:32s}: {e}/{tot} ({100 * e / tot:.1f}%)")
+            print(f"  {label:32s}: {e}/{tot} ({100 * e / tot:.1f}%)  "
+                  f"| value-blind {evb}/{tot} ({100 * evb / tot:.1f}%)")
+
+
+# Probe questions for --ask. Three tiers, in increasing difficulty:
+#   A) in-distribution phrasings (should be solid),
+#   B) PARAPHRASED jargon in unseen sentences (the real test of whether
+#      similarity-based retrieval generalizes beyond exact string match),
+#   C) synonyms / multi-jargon (hardest -- multiple copies + a join).
+PROBE_QUESTIONS = [
+    # --- A: in-distribution ---
+    "What is the number of sales for MPY",
+    "Give all the OBDs invoiced in the month of april 2025",
+    "Who is the ASM for customer code ABC123",
+    "Vehicle Utilization for the period between 2025-01-01 to 2025-01-31",
+    # --- B: paraphrased jargon (generalization) ---
+    "How many sales were made for MPY in April 2025?",
+    "List all OBDs dispatched after 2025-05-01",
+    "Which salesperson is the ASM for customer code XYZ789?",
+    "Show me the vehicle utilization for March 2025",
+    # --- C: synonyms / multi-jargon ---
+    "What is the Sales Order Number for OBD ABC123",
+    "Who is the RSM for OBD Number ABC123",
+    "Count the OBDs for the Marine business unit",
+]
+
+
+def ask(args):
+    """Interactive inference: English question -> generated SQL. Either runs
+    the built-in PROBE_QUESTIONS or a single --q "..." question."""
+    from tokenizers import Tokenizer
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    data = load_dataset(os.path.join(BASE, "data", "fusion.bin"))
+    tokenizer = Tokenizer.from_file(os.path.join(BASE, "data", "bpe_tokenizer.json"))
+    expansions = load_expansions()
+    eos_id = tokenizer.token_to_id("[eos]")
+    sep_id = tokenizer.token_to_id("[sep]")
+    V_bpe = data["V_bpe"]
+    seq_len = data["seq_len"]
+
+    def detok(ids):
+        parts, buf = [], []
+        for i in ids:
+            if i >= V_bpe:
+                if buf:
+                    parts.append(tokenizer.decode(buf)); buf = []
+                parts.append(expansions[i])
+            else:
+                buf.append(i)
+        if buf:
+            parts.append(tokenizer.decode(buf))
+        return " ".join(parts)
+
+    model = DeepFusionNet(data["V"], data["V_bpe"], data["seq_len"],
+                          d=256, heads=8, depth=4).to(device)
+    model.load_state_dict(torch.load(
+        os.path.join(BASE, "weights", "schema_fusion_pt.pt"), map_location=device))
+    model.eval()
+    mem_tokens = data["mem_tokens"].to(device)
+    mem_emit_ids = data["mem_emit_ids"].to(device)
+
+    questions = [args.q] if args.q else PROBE_QUESTIONS
+    with torch.no_grad():
+        for q in questions:
+            seq = tokenizer.encode(q).ids + [sep_id]
+            gen = []
+            for _ in range(seq_len - len(seq)):
+                X = torch.tensor(seq, dtype=torch.long, device=device).unsqueeze(0)
+                log_probs, _ = model(X, mem_tokens, mem_emit_ids)
+                nxt = int(log_probs[0, -1].argmax())
+                if nxt == eos_id:
+                    break
+                gen.append(nxt)
+                seq.append(nxt)
+            print(f"Q  : {q}")
+            print(f"SQL: {detok(gen)}\n")
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--eval", action="store_true")
+    ap.add_argument("--ask", action="store_true", help="run built-in probe questions")
+    ap.add_argument("--q", type=str, default=None, help="ask a single question")
     ap.add_argument("--epochs", type=int, default=200)
     ap.add_argument("--bs", type=int, default=64)
     ap.add_argument("--warmup", type=int, default=20)
@@ -440,5 +529,7 @@ if __name__ == "__main__":
     args = ap.parse_args()
     if args.eval:
         evaluate(args)
+    elif args.ask or args.q:
+        ask(args)
     else:
         train(args)
