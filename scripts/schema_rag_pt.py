@@ -283,5 +283,17 @@ def train():
         t1 = time.time()
         print(f"Epoch {epoch}/{epochs} | Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Top1: {top1_acc:.2f}% | Top5: {top5_acc:.2f}% | LR: {optimizer.param_groups[0]['lr']:.2e} | Time: {t1-t0:.2f}s")
 
+        # Save checkpoint if it's the best so far
+        if not hasattr(model, 'best_top5'):
+            model.best_top5 = -1
+            
+        if top5_acc > model.best_top5:
+            model.best_top5 = top5_acc
+            weights_dir = os.path.join(os.path.dirname(__file__), "..", "weights")
+            os.makedirs(weights_dir, exist_ok=True)
+            save_path = os.path.join(weights_dir, "schema_rag_pt.pt")
+            torch.save(model.state_dict(), save_path)
+            print(f"    [checkpoint] new best Top5 {top5_acc:.2f}% -> {save_path}")
+
 if __name__ == "__main__":
     train()
