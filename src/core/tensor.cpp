@@ -8,14 +8,35 @@ Tensor matrix_add(const Tensor& A,const Tensor& B);
 void im2col_cuda(const Tensor& im,int k_h,int k_w,int s,int p,int h_out,int w_out,Tensor& m);
 void col2im_cuda(const Tensor& m,int k_h,int k_w,int s,int p,int h_out,int w_out,Tensor& im);
 
+#include <unordered_map>
+#include <vector>
+#include <mutex>
+
+static std::unordered_map<size_t, std::vector<float*>> memory_pool;
+
+float* allocate_cuda_pool(size_t bytes) {
+    if (memory_pool.find(bytes) != memory_pool.end() && !memory_pool[bytes].empty()) {
+        float* ptr = memory_pool[bytes].back();
+        memory_pool[bytes].pop_back();
+        return ptr;
+    }
+    float* ptr = nullptr;
+    if (cudaMalloc(&ptr, bytes) != cudaSuccess) throw std::runtime_error("Failed to allocate memory on GPU");
+    return ptr;
+}
+
+void free_cuda_pool(float* ptr, size_t bytes) {
+    memory_pool[bytes].push_back(ptr);
+}
+
 Tensor::Tensor():d_ptr(nullptr),shape({}) {}
 
 Tensor::Tensor(int r,int c)
 {
     this->shape={r,c};
-    float *ptr=nullptr;
-    if(cudaMalloc(&ptr,r*c*sizeof(float))!=cudaSuccess) throw std::runtime_error("Failed to allocate memory on GPU");
-    d_ptr=std::shared_ptr<float>(ptr,[](float* p){cudaFree(p);});
+    size_t bytes = r*c*sizeof(float);
+    float *ptr = allocate_cuda_pool(bytes);
+    d_ptr=std::shared_ptr<float>(ptr, [bytes](float* p){ free_cuda_pool(p, bytes); });
 }
 
 Tensor::Tensor(std::vector<int> shape)
@@ -24,9 +45,9 @@ Tensor::Tensor(std::vector<int> shape)
     int total=1;
     for(int dim:shape) total*=dim;
 
-    float *ptr=nullptr;
-    if(cudaMalloc(&ptr,total*sizeof(float))!=cudaSuccess) throw std::runtime_error("Failed to allocate memory on GPU");
-    this->d_ptr=std::shared_ptr<float>(ptr,[](float* p){cudaFree(p);});
+    size_t bytes = total*sizeof(float);
+    float *ptr = allocate_cuda_pool(bytes);
+    this->d_ptr=std::shared_ptr<float>(ptr, [bytes](float* p){ free_cuda_pool(p, bytes); });
 }
 
 float* Tensor::data() const {return d_ptr.get();}
