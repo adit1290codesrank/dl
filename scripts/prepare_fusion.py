@@ -23,6 +23,7 @@ import array
 import re
 import sys
 from tokenizers import Tokenizer
+from value_slots import extract_slots, delex_output, repair_output
 
 SEQ_LEN = 128
 MAX_MEM_TOKS = 8
@@ -224,13 +225,14 @@ def generate_dataset():
         for i in ids:
             if i >= V_bpe:
                 if buf:
-                    parts.append(tokenizer.decode(buf))
+                    # keep [valN] slot tokens visible in the decode
+                    parts.append(tokenizer.decode(buf, skip_special_tokens=False))
                     buf = []
                 parts.append(expansions[i])
             else:
                 buf.append(i)
         if buf:
-            parts.append(tokenizer.decode(buf))
+            parts.append(tokenizer.decode(buf, skip_special_tokens=False))
         return " ".join(parts)
 
     def squash(s):
@@ -258,19 +260,59 @@ def generate_dataset():
     print(f"Tokenizing {len(samples)} examples...")
     tokenized = []
     roundtrip_fail = 0
+    n_slots_total = 0
+    n_with_slots = 0
+    n_dropped_noisy = 0
+    n_repaired_lits = 0
+    n_repaired_ex = 0
+    val_tok_re = re.compile(r"\[val\d+\]")
     for s in samples:
         # NO jargon replacement: the question keeps MPY/ASM/... literally.
-        inp_ids = tokenizer.encode(s["input"]).ids
-        out_ids = encode_target(s["output"])
+        # Literal values (dates/ids/numbers) are delexicalized to [valN] slot
+        # tokens in BOTH question and SQL; real values return at decode time.
+        delexed_inp, slot_values = extract_slots(s["input"])
+        delexed_out = delex_output(s["output"], slot_values)
+
+        # NOISY-LABEL REPAIR: gold literals that don't appear in the question
+        # (typo'd ids like OB1D23 vs 'OBD123', random synthetic dates for a
+        # "Jan 2025" prompt) are remapped onto the question's unused slots --
+        # gold follows the question, matching copy semantics at inference.
+        delexed_out, n_rep = repair_output(delexed_out, slot_values)
+        n_repaired_lits += n_rep
+        n_repaired_ex += bool(n_rep)
+
+        # DROP only what repair couldn't save: a quoted literal still carrying
+        # digits references a value neither present in nor derivable from the
+        # question (e.g. "month of march" with no year -> random gold dates).
+        # No model can learn these; they poison training and make eval
+        # unwinnable.
+        residual = [q for q in re.findall(r"'[^']*'", delexed_out)
+                    if re.search(r"\d", val_tok_re.sub("", q))]
+        if residual:
+            n_dropped_noisy += 1
+            if n_dropped_noisy <= 3:
+                print(f"  [drop-noisy] Q: {s['input'][:70]!r} residual: {residual[:2]}")
+            continue
+        n_slots_total += len(slot_values)
+        n_with_slots += bool(slot_values)
+
+        inp_ids = tokenizer.encode(delexed_inp).ids
+        out_ids = encode_target(delexed_out)
         assert all(0 <= i < V for i in out_ids), f"target id out of range: {s['output']}"
         assert all(0 <= i < V_bpe for i in inp_ids), "input id outside BPE range"
-        if squash(decode_ids(out_ids)) != squash(s["output"]):
+        if squash(decode_ids(out_ids)) != squash(delexed_out):
             roundtrip_fail += 1
             if roundtrip_fail <= 3:
                 print("  [roundtrip-fail]")
-                print("    orig   :", repr(s["output"][:140]))
+                print("    orig   :", repr(delexed_out[:140]))
                 print("    decoded:", repr(decode_ids(out_ids)[:140]))
         tokenized.append((inp_ids, out_ids))
+    print(f"Value slots: {n_slots_total} total, "
+          f"{n_with_slots}/{len(tokenized)} kept examples have >=1 slot")
+    print(f"Repaired noisy literals: {n_repaired_lits} across "
+          f"{n_repaired_ex} examples (gold remapped onto question slots)")
+    print(f"Dropped noisy-label examples (unrepairable): "
+          f"{n_dropped_noisy}/{len(samples)}")
 
     # ---- Hard assertions ---------------------------------------------------
     rt_ok = 1.0 - roundtrip_fail / max(1, len(tokenized))

@@ -35,7 +35,13 @@ def train_tokenizer():
     # We use a vocab size of 2000. It's enough to capture T-SQL keywords and common Amazon Logistics terms,
     # while forcing it to split rare typos into subwords.
     # [EOS] appended last so [PAD]=0 / [UNK]=1 ids stay stable; gives the SQL target an explicit stop token.
-    trainer = BpeTrainer(special_tokens=["[pad]", "[unk]", "[cls]", "[sep]", "[eos]"], vocab_size=2000)
+    # [val1]..[val10] are value-slot tokens: literal dates/ids in the question
+    # are delexicalized to these (see scripts/value_slots.py) so the model
+    # copies one atomic slot token instead of spelling digits, and the real
+    # value is substituted back deterministically after decoding.
+    val_slots = [f"[val{i}]" for i in range(1, 11)]
+    trainer = BpeTrainer(special_tokens=["[pad]", "[unk]", "[cls]", "[sep]", "[eos]"] + val_slots,
+                         vocab_size=2000)
     
     tokenizer.train(files=[corpus_path], trainer=trainer)
     

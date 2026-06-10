@@ -334,13 +334,14 @@ def evaluate(args):
         for i in ids:
             if i >= V_bpe:
                 if buf:
-                    parts.append(tokenizer.decode(buf))
+                    # keep_special so [valN] slot tokens stay visible
+                    parts.append(tokenizer.decode(buf, skip_special_tokens=False))
                     buf = []
                 parts.append(expansions[i])
             else:
                 buf.append(i)
         if buf:
-            parts.append(tokenizer.decode(buf))
+            parts.append(tokenizer.decode(buf, skip_special_tokens=False))
         return " ".join(parts)
 
     def squash(s):
@@ -407,7 +408,8 @@ def evaluate(args):
 
             pred_sql = detok(gen)
             gold_sql = detok(tgt_ids)
-            prompt_txt = tokenizer.decode(val_X[i][:p].tolist())
+            prompt_txt = tokenizer.decode(val_X[i][:p].tolist(),
+                                          skip_special_tokens=False)
 
             ok = squash(pred_sql) == squash(gold_sql)
             ok_vb = value_blind(pred_sql) == value_blind(gold_sql)
@@ -467,8 +469,11 @@ PROBE_QUESTIONS = [
 
 def ask(args):
     """Interactive inference: English question -> generated SQL. Either runs
-    the built-in PROBE_QUESTIONS or a single --q "..." question."""
+    the built-in PROBE_QUESTIONS or a single --q "..." question. Literal
+    values are delexicalized to [valN] slots before encoding and substituted
+    back into the generated SQL (see value_slots.py)."""
     from tokenizers import Tokenizer
+    from value_slots import extract_slots, relex
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     data = load_dataset(os.path.join(BASE, "data", "fusion.bin"))
     tokenizer = Tokenizer.from_file(os.path.join(BASE, "data", "bpe_tokenizer.json"))
@@ -483,12 +488,13 @@ def ask(args):
         for i in ids:
             if i >= V_bpe:
                 if buf:
-                    parts.append(tokenizer.decode(buf)); buf = []
+                    parts.append(tokenizer.decode(buf, skip_special_tokens=False))
+                    buf = []
                 parts.append(expansions[i])
             else:
                 buf.append(i)
         if buf:
-            parts.append(tokenizer.decode(buf))
+            parts.append(tokenizer.decode(buf, skip_special_tokens=False))
         return " ".join(parts)
 
     model = DeepFusionNet(data["V"], data["V_bpe"], data["seq_len"],
@@ -502,7 +508,8 @@ def ask(args):
     questions = [args.q] if args.q else PROBE_QUESTIONS
     with torch.no_grad():
         for q in questions:
-            seq = tokenizer.encode(q).ids + [sep_id]
+            delexed, slot_values = extract_slots(q)
+            seq = tokenizer.encode(delexed).ids + [sep_id]
             gen = []
             for _ in range(seq_len - len(seq)):
                 X = torch.tensor(seq, dtype=torch.long, device=device).unsqueeze(0)
@@ -512,8 +519,10 @@ def ask(args):
                     break
                 gen.append(nxt)
                 seq.append(nxt)
-            print(f"Q  : {q}")
-            print(f"SQL: {detok(gen)}\n")
+            print(f"Q   : {q}")
+            if slot_values:
+                print(f"slots: {dict((f'[val{i+1}]', v) for i, v in enumerate(slot_values))}")
+            print(f"SQL : {relex(detok(gen), slot_values)}\n")
 
 
 if __name__ == "__main__":
