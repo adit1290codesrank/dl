@@ -31,9 +31,21 @@ random.seed(7)
 BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 OUT = os.path.join(BASE, "data", "synthetic_dataset.json")
 
-N_TRAIN = 4000
-N_VAL = 1000
+N_TRAIN = 7200
+N_VAL = 1800
 VAL_TEMPLATES_PER_FAMILY = 2  # last K question templates are val-only
+
+# Schema (INCLUDE_IN_MODEL only -- the memory bank can only emit these) for
+# the GENERAL T-SQL families: they teach compositional retrieval ("question
+# names a column -> point at its memory row") over all ~400 columns, so the
+# model can answer arbitrary queries instead of only the business templates.
+with open(os.path.join(BASE, "all_tables.json"), encoding="utf-8") as f:
+    _schema = json.load(f)
+TABLE_COLS = {}
+for _it in _schema:
+    if _it.get("INCLUDE_IN_MODEL") and _it.get("COLUMN_NAME"):
+        TABLE_COLS.setdefault(_it["TABLE_NAME"], []).append(_it["COLUMN_NAME"])
+GEN_TABLES = [t for t, cs in TABLE_COLS.items() if len(cs) >= 3]
 
 # ---------------------------------------------------------------------------
 # Value pools
@@ -88,6 +100,15 @@ def fill(d):
     mon_text, m1, m2 = rand_month()
     d1, d2 = sorted([rand_iso(), rand_iso()])
     ids = [rand_id() for _ in range(random.randint(2, 4))]
+    # general-query fields: a random table + columns from THAT table
+    t = random.choice(GEN_TABLES)
+    cols = TABLE_COLS[t]
+    date_cols = [c for c in cols if "date" in c.lower()] or cols
+    ordw, ordsql = random.choice([("ascending", "ASC"), ("descending", "DESC")])
+    v = random.choice(WAREHOUSES + TRANSPORTERS
+                      + ["Delivered", "Cancelled", "Pending Picking",
+                         "Pending Dispatch", "Sales", "Stock Transfer"]
+                      + [rand_id()])
     return {
         "smu": random.choice(SMUS), "wh": random.choice(WAREHOUSES),
         "plant": random.choice(PLANTS), "tr": random.choice(TRANSPORTERS),
@@ -97,6 +118,14 @@ def fill(d):
         "d1": d1, "d2": d2,
         "n": random.choice([3, 5, 10, 15, 20, 25, 50]),
         "days": random.choice([3, 5, 7, 10, 14, 30]),
+        "t": t, "c": random.choice(cols), "c_sel": random.choice(cols),
+        "c2": random.choice(cols), "c_date": random.choice(date_cols),
+        "cj1": random.choice(TABLE_COLS["AN_CUSTOMER_VS_ASM_RSM"]),
+        "cj2": random.choice(TABLE_COLS["AN_LOGISTICS_TRACKER"]),
+        "agg": random.choice(["COUNT", "SUM", "AVG", "MIN", "MAX"]),
+        "ordw": ordw, "ord": ordsql,
+        "num": random.choice([5, 10, 50, 100, 500, 1000]),
+        "v": v,
         **d,
     }
 
@@ -158,6 +187,10 @@ FAMILIES = [
         "get the SO number for OBD {id}",
         "which sales order does OBD {id} belong to",
         "SONum for OBD {id} please",
+        "what is the SO for OBD {id}",
+        "sales order for OBD number {id}",
+        "give me the sales order number against OBD {id}",
+        "SO number of the OBD {id}",
         "Find the sales order number for OBD number {id}",
         "what SO is linked to OBD {id}",
     ], "SELECT SONum\nFROM AN_LOGISTICS_TRACKER\nWHERE PickListID = '{id}'"),
@@ -292,30 +325,38 @@ FAMILIES = [
         "{setter} for the following OBDs\n{ids_lines}",
         "{setter} for these OBDs\n{ids_lines}",
         "for the OBDs below, {setter}\n{ids_lines}",
+        "{setter} on all of these OBDs\n{ids_lines}",
+        "kindly {setter} for the OBD list\n{ids_lines}",
         "please {setter} on the following OBDs\n{ids_lines}",
         "{setter} for the listed OBDs\n{ids_lines}",
     ], "EXEC CB_OBDMassUpdate '_CB_USERNAME_', '{ids_csv}', '{field}', {value}"),
     (2, [
         "Reset transporters for the following OBDs\n{ids_lines}",
         "reset the transporter on these OBDs\n{ids_lines}",
+        "unset the transporter for these OBDs\n{ids_lines}",
         "clear transporter for the OBDs below\n{ids_lines}",
         "remove the transporter assignment for these OBDs\n{ids_lines}",
     ], "EXEC CB_OBDMassUpdate '_CB_USERNAME_', '{ids_csv}', 'Transporter', NULL"),
     (2, [
         "Cancel following OBDs\n{ids_lines}",
         "cancel these OBDs\n{ids_lines}",
+        "void the following OBDs\n{ids_lines}",
         "please cancel the OBDs below\n{ids_lines}",
         "mark the following OBDs as cancelled\n{ids_lines}",
     ], "EXEC CB_OBDMassUpdate '_CB_USERNAME_', '{ids_csv}', 'Cancelled', 1"),
     (2, [
         "Clear Proof Of Delivery for the following LRs\n{ids_lines}",
         "Remove PODs of the listed OBDs\n{ids_lines}",
+        "remove the proof of delivery for these OBDs\n{ids_lines}",
+        "wipe the POD records of the following OBDs\n{ids_lines}",
+        "clear POD documents for the OBDs below\n{ids_lines}",
         "delete the POD for these OBDs\n{ids_lines}",
         "clear the PODs on the following OBDs\n{ids_lines}",
     ], "EXEC CB_OBDMassUpdate '_CB_USERNAME_', '{ids_csv}', 'PODDocId', ''"),
     (2, [
         "Mark these as {biz} OBDs\n{ids_lines}",
         "set business as {biz} for the following OBDs\n{ids_lines}",
+        "flag the following OBDs under {biz}\n{ids_lines}",
         "tag the OBDs below as {biz}\n{ids_lines}",
         "these OBDs belong to {biz}, mark them\n{ids_lines}",
     ], "EXEC CB_OBDMassUpdate '_CB_USERNAME_', '{ids_csv}', 'Business', '{biz}'"),
@@ -325,6 +366,8 @@ FAMILIES = [
         "List top Warehouses where OBDs are Pending Dispatch for more than {days} days",
         "warehouses with OBDs pending dispatch over {days} days",
         "which warehouses have OBDs stuck in pending dispatch for {days}+ days",
+        "list warehouses where dispatch is pending more than {days} days",
+        "warehouses having OBDs in pending dispatch older than {days} days",
         "top sites where OBDs are pending dispatch beyond {days} days",
         "show warehouses with dispatch pending for more than {days} days",
     ], "SELECT SiteId, COUNT(PickListId)\nFROM AN_LOGISTICS_TRACKER\nWHERE InvoiceDate < DATEADD(DAY, -{days}, GETDATE())\nAND PendingStatus = 'Pending Dispatch'\nAND ProdOrder = 0\nGROUP BY SiteId\nORDER BY COUNT(*) DESC"),
@@ -332,6 +375,9 @@ FAMILIES = [
         "List different pending statuses in {wh} warehouse for OBDs loaded after {mon}",
         "pending status breakdown for {wh} for OBDs after {mon}",
         "what pending statuses exist in {wh} for OBDs received after {mon}",
+        "different pending statuses for {wh} OBDs loaded after {mon}",
+        "list the pending status distribution in {wh} for OBDs after {mon}",
+        "what are the pending statuses in the {wh} warehouse since {mon}",
         "show the pending statuses at {wh} warehouse since {mon}",
         "pending status counts in {wh} for OBDs loaded after {mon}",
     ], "SELECT PendingStatus, COUNT(PickListId)\nFROM AN_LOGISTICS_TRACKER\nWHERE PendingStatus NOT IN ('Cancelled', 'Delivered')\nAND ProdOrder = 0\nAND SiteId = '{wh}'\nAND PickListEmailDate >= '{m1}'\nGROUP BY PendingStatus\nORDER BY COUNT(*) DESC"),
@@ -365,6 +411,98 @@ FAMILIES = [
         "{n} worst OBDs on picking-to-dispatch time for {plant}, received after {mon}",
         "slowest {n} OBDs picking to dispatch, plant {plant}, after {mon}",
     ], "SELECT TOP {n} PickListId OBDNo, ShipCustomerName, SiteId Warehouse, \nISNULL(ShipToDestinationOverride, ShipToDestination) Destination, \nPickListEmailDate OBDEmailDate, PickListRetForInvDate OBDRetForInvDate, PickListRetForInvTime OBDRetForInvTime,\nISNULL(MtrlMvdFromFctryDateOverride,MtrlMvdFromFctryDate) DispatchDate, \nISNULL(MtrlMvdFromFctryTimeOverride,MtrlMvdFromFctrytime) DispatchTime, \ndbo.HoursDifferenceF(PickListRetForInvDate,PickListRetForInvTime,ISNULL(MtrlMvdFromFctryDateOverride,MtrlMvdFromFctryDate),ISNULL(MtrlMvdFromFctryTimeOverride,MtrlMvdFromFctrytime)) PickingToDispatchInMinutes\nFROM AN_LOGISTICS_TRACKER\nWHERE PendingStatus NOT IN ('Cancelled', 'Pending Picking')\nAND ProdOrder = 0\nAND FromPlant = '{plant}'\nAND PickListEmailDate >= '{m1}'\nORDER BY PickingToDispatchInMinutes DESC"),
+
+    # =======================================================================
+    # GENERAL T-SQL families (over ALL schema tables/columns). These teach
+    # compositional retrieval -- the question NAMES a column/table and the
+    # model must point at the right memory row -- so arbitrary queries work,
+    # not just the business templates above.
+    # =======================================================================
+    (10, [
+        "Show me {c_sel} from {t} where {c} is {v}",
+        "get {c_sel} from {t} where {c} = {v}",
+        "list {c_sel} in {t} with {c} {v}",
+        "{c_sel} from {t} for {c} {v}",
+        "fetch {c_sel} of {t} where {c} equals {v}",
+        "what is the {c_sel} in {t} when {c} is {v}",
+        "select {c_sel} from {t} where {c} is {v}",
+        "from {t} give me {c_sel} where {c} is {v}",
+        "find {c_sel} for rows in {t} whose {c} is {v}",
+    ], "SELECT {c_sel}\nFROM {t}\nWHERE {c} = '{v}'"),
+    (4, [
+        "Show all records from {t} where {c} is {v}",
+        "everything in {t} with {c} {v}",
+        "all rows of {t} where {c} = {v}",
+        "dump {t} where {c} is {v}",
+        "get all data from {t} for {c} {v}",
+        "show me the full rows of {t} where {c} equals {v}",
+    ], "SELECT *\nFROM {t}\nWHERE {c} = '{v}'"),
+    (8, [
+        "show top {n} {c_sel} from {t} ordered by {c} {ordw}",
+        "top {n} {c_sel} in {t} by {c} {ordw}",
+        "list the top {n} {c_sel} from {t} sorted by {c} {ordw}",
+        "give me {n} {c_sel} from {t} ranked by {c} {ordw}",
+        "first {n} {c_sel} of {t} ordered on {c} {ordw}",
+        "{n} {c_sel} from {t}, order by {c} {ordw}",
+        "Show top {n} {c_sel} ordered by {c} {ordw} in {t}",
+        "what are the top {n} {c_sel} in {t} by {c} {ordw}",
+    ], "SELECT TOP {n} {c_sel}\nFROM {t}\nORDER BY {c} {ord}"),
+    (8, [
+        "{agg} of {c2} grouped by {c} in {t}",
+        "show {agg} of {c2} per {c} from {t}",
+        "what is the {agg} of {c2} for each {c} in {t}",
+        "group {t} by {c} and give {agg} of {c2}",
+        "compute {agg} on {c2} by {c} for {t}",
+        "{agg} {c2} broken down by {c} in {t}",
+        "per {c}, what is the {agg} of {c2} in {t}",
+        "aggregate {c2} with {agg} grouped on {c} from {t}",
+    ], "SELECT {c}, {agg}({c2})\nFROM {t}\nGROUP BY {c}"),
+    (4, [
+        "count of records per {c} in {t}",
+        "how many rows per {c} in {t}",
+        "record count grouped by {c} for {t}",
+        "count rows in {t} for each {c}",
+        "how many entries does {t} have per {c}",
+        "number of records by {c} in {t}",
+    ], "SELECT {c}, COUNT(*)\nFROM {t}\nGROUP BY {c}"),
+    (6, [
+        "{c_sel} from {t} where {c_date} between {d1} and {d2}",
+        "show {c_sel} of {t} with {c_date} from {d1} to {d2}",
+        "get {c_sel} in {t} where {c_date} is between {d1} and {d2}",
+        "list {c_sel} from {t} for {c_date} in the range {d1} to {d2}",
+        "{c_sel} of {t} where {c_date} falls between {d1} and {d2}",
+        "fetch {c_sel} from {t}, {c_date} between {d1} and {d2}",
+    ], "SELECT {c_sel}\nFROM {t}\nWHERE {c_date} BETWEEN '{d1}' AND '{d2}'"),
+    (6, [
+        "show {c_sel} from {t} where {c} is more than {num}",
+        "{c_sel} in {t} with {c} greater than {num}",
+        "get {c_sel} from {t} where {c} above {num}",
+        "list {c_sel} of {t} where {c} exceeds {num}",
+        "{c_sel} from {t} where {c} over {num}",
+        "find {c_sel} in {t} having {c} larger than {num}",
+    ], "SELECT {c_sel}\nFROM {t}\nWHERE {c} > {num}"),
+    (6, [
+        "{cj1} and {cj2} for customers joined with logistics where {cj2} is {v}",
+        "join customer and logistics, show {cj1} and {cj2} where {cj2} = {v}",
+        "show {cj1} with {cj2} from the customer-logistics join where {cj2} is {v}",
+        "get {cj1} and {cj2} across AN_CUSTOMER_VS_ASM_RSM and AN_LOGISTICS_TRACKER where {cj2} is {v}",
+        "customer {cj1} along with {cj2} where {cj2} equals {v}",
+        "{cj1} and {cj2} joined on customer code where {cj2} is {v}",
+    ], "SELECT A.{cj1}, B.{cj2}\nFROM AN_CUSTOMER_VS_ASM_RSM A JOIN AN_LOGISTICS_TRACKER B\nON A.CustomerCode = B.SoldToCustomerId\nWHERE B.{cj2} = '{v}'"),
+    (3, [
+        "{c} from {t}, if null use {v}",
+        "show {c} of {t} defaulting nulls to {v}",
+        "get {c} from {t} replacing null with {v}",
+        "{c} in {t} with nulls shown as {v}",
+        "select {c} from {t} but use {v} when null",
+    ], "SELECT ISNULL({c}, '{v}')\nFROM {t}"),
+    (3, [
+        "difference in days between {c} and {c2} in {t}",
+        "days between {c} and {c2} for {t}",
+        "how many days between {c} and {c2} in {t}",
+        "day gap from {c} to {c2} in {t}",
+        "compute the day difference of {c} and {c2} for {t}",
+    ], "SELECT DATEDIFF(day, {c}, {c2})\nFROM {t}"),
 ]
 
 
