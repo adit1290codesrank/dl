@@ -160,6 +160,13 @@ def generate_dataset():
 
     for el in schema_elements:
         add_row(el["key_text"], canon_vid(el))
+    # Bare-name key per element: the descriptive key ("COLUMN X IN T") dilutes
+    # the distinguishing tokens across boilerplate and table names, which
+    # confuses near-twin columns (PickListId vs PickListEmailDate vs ...).
+    # When the question literally names a column, this undiluted key is the
+    # sharp match. Dedupe collapses same-name columns to one row (canonical id).
+    for el in schema_elements:
+        add_row(el["name"], canon_vid(el))
     for el in schema_elements:
         for syn in el["synonyms"]:
             add_row(syn, canon_vid(el))

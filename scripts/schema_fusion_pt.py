@@ -44,25 +44,28 @@ class DecoderBlock(nn.Module):
     """Pre-LN: self-attn -> cross-attn(memory) -> FFN. Mirrors the planned C++
     DecoderBlock (SelfAttention + PointerAttention + 2x Dense)."""
 
-    def __init__(self, d, heads):
+    def __init__(self, d, heads, dropout=0.1):
         super().__init__()
         self.ln1 = nn.LayerNorm(d)
-        self.self_attn = nn.MultiheadAttention(d, heads, batch_first=True)
+        self.self_attn = nn.MultiheadAttention(d, heads, dropout=dropout,
+                                               batch_first=True)
         self.ln2 = nn.LayerNorm(d)
-        self.cross_attn = nn.MultiheadAttention(d, heads, batch_first=True)
+        self.cross_attn = nn.MultiheadAttention(d, heads, dropout=dropout,
+                                                batch_first=True)
         self.ln3 = nn.LayerNorm(d)
         self.ff1 = nn.Linear(d, 4 * d)
         self.ff2 = nn.Linear(4 * d, d)
+        self.drop = nn.Dropout(dropout)
 
     def forward(self, x, mem, causal_mask):
         h = self.ln1(x)
         a, _ = self.self_attn(h, h, h, attn_mask=causal_mask, need_weights=False)
-        x = x + a
+        x = x + self.drop(a)
         h = self.ln2(x)
         a, w = self.cross_attn(h, mem, mem, average_attn_weights=True)
-        x = x + a
+        x = x + self.drop(a)
         h = self.ln3(x)
-        x = x + self.ff2(F.relu(self.ff1(h)))
+        x = x + self.drop(self.ff2(F.relu(self.ff1(h))))
         return x, w  # w: [B, T, M] cross-attention weights
 
 
@@ -94,10 +97,15 @@ class DeepFusionNet(nn.Module):
         mask = (mem_tokens != 0).float().unsqueeze(-1)
         return (emb * mask).sum(1) / mask.sum(1).clamp(min=1.0)
 
-    def forward(self, X, mem_tokens, mem_emit_ids):
+    def forward(self, X, mem_tokens, mem_emit_ids, mem_pooled=None):
         B, T = X.shape
         M = mem_tokens.shape[0]
-        mem = self.encode_memory(mem_tokens).unsqueeze(0).expand(B, -1, -1)
+        # mem_pooled: precomputed encode_memory() output -- pass it during
+        # autoregressive decoding so the (static) memory bank isn't re-pooled
+        # on every generated token.
+        if mem_pooled is None:
+            mem_pooled = self.encode_memory(mem_tokens)
+        mem = mem_pooled.unsqueeze(0).expand(B, -1, -1)
         pos = torch.arange(T, device=X.device)
         x = self.tok_emb(X) + self.pos_emb(pos).unsqueeze(0)
         causal = nn.Transformer.generate_square_subsequent_mask(T, device=X.device)
@@ -386,61 +394,93 @@ def evaluate(args):
         s = re.sub(r"\d+", "<N>", s)
         return squash(s)
 
-    with torch.no_grad():
-        for i in range(len(val_X)):
-            Y = val_Y[i]
-            sup = (Y != -100).nonzero().view(-1)
-            if len(sup) == 0:
-                continue
-            p = int(sup[0])  # first supervised position; X[:p+1] = prompt + [sep]
-            tgt_ids = [int(t) for t in Y[sup] if int(t) != eos_id]
-
-            seq = val_X[i][:p + 1].tolist()
-            gen = []
-            for _ in range(seq_len - len(seq)):
-                X = torch.tensor(seq, dtype=torch.long, device=device).unsqueeze(0)
-                log_probs, _ = model(X, mem_tokens, mem_emit_ids)
-                nxt = int(log_probs[0, -1].argmax())
-                if nxt == eos_id:
-                    break
-                gen.append(nxt)
-                seq.append(nxt)
-
-            pred_sql = detok(gen)
-            gold_sql = detok(tgt_ids)
-            prompt_txt = tokenizer.decode(val_X[i][:p].tolist(),
-                                          skip_special_tokens=False)
-
-            ok = squash(pred_sql) == squash(gold_sql)
-            ok_vb = value_blind(pred_sql) == value_blind(gold_sql)
-            exact += ok
-            exact_vb += ok_vb
-            tok_exact += gen == tgt_ids
-            wf += well_formed(pred_sql)
-            n += 1
-            plo = prompt_txt.lower()
-            for label, pats in jargon_specs:
-                if any(p.search(plo) for p in pats):
-                    stats[label][2] += 1
-                    stats[label][0] += ok
-                    stats[label][1] += ok_vb
-
-            if args.show_jargon:
-                want = any(any(p.search(plo) for p in pats)
-                           for label, pats in jargon_specs
-                           if label.lower() == args.show_jargon.lower())
-                if want and not ok and shown < args.show:
-                    shown += 1
-                    print(f"--- example {i} [{args.show_jargon}] ---")
-                    print("Q   :", prompt_txt[:140])
-                    print("GOLD:", gold_sql[:200])
-                    print("PRED:", pred_sql[:200])
-            elif shown < args.show and not ok:
+    def score_one(i, prompt_ids, gen, tgt_ids):
+        nonlocal exact, exact_vb, tok_exact, wf, n, shown
+        pred_sql = detok(gen)
+        gold_sql = detok(tgt_ids)
+        prompt_txt = tokenizer.decode(prompt_ids, skip_special_tokens=False)
+        ok = squash(pred_sql) == squash(gold_sql)
+        ok_vb = value_blind(pred_sql) == value_blind(gold_sql)
+        exact += ok
+        exact_vb += ok_vb
+        tok_exact += gen == tgt_ids
+        wf += well_formed(pred_sql)
+        n += 1
+        plo = prompt_txt.lower()
+        for label, pats in jargon_specs:
+            if any(p.search(plo) for p in pats):
+                stats[label][2] += 1
+                stats[label][0] += ok
+                stats[label][1] += ok_vb
+        if args.show_jargon:
+            want = any(any(p.search(plo) for p in pats)
+                       for label, pats in jargon_specs
+                       if label.lower() == args.show_jargon.lower())
+            if want and not ok and shown < args.show:
                 shown += 1
-                print(f"--- example {i} ---")
-                print("Q   :", prompt_txt[:120])
-                print("GOLD:", gold_sql[:160])
-                print("PRED:", pred_sql[:160])
+                print(f"--- example {i} [{args.show_jargon}] ---")
+                print("Q   :", prompt_txt[:140])
+                print("GOLD:", gold_sql[:200])
+                print("PRED:", pred_sql[:200])
+        elif shown < args.show and not ok:
+            shown += 1
+            print(f"--- example {i} ---")
+            print("Q   :", prompt_txt[:120])
+            print("GOLD:", gold_sql[:160])
+            print("PRED:", pred_sql[:160])
+
+    # Collect (example idx, prompt ids, target ids) once, then decode in
+    # BATCHES: right-padding is safe under the causal mask (pad sits in each
+    # sequence's future and is never attended), so a whole batch advances one
+    # token per forward pass instead of one example at a time. Together with
+    # the precomputed memory encoding this is ~batch-size x faster.
+    items = []
+    for i in range(len(val_X)):
+        Y = val_Y[i]
+        sup = (Y != -100).nonzero().view(-1)
+        if len(sup) == 0:
+            continue
+        p = int(sup[0])  # first supervised position; X[:p+1] = prompt + [sep]
+        tgt_ids = [int(t) for t in Y[sup] if int(t) != eos_id]
+        items.append((i, val_X[i][:p + 1].tolist(), tgt_ids, p))
+
+    t0 = time.time()
+    with torch.no_grad():
+        mem_pooled = model.encode_memory(mem_tokens)
+        for bstart in range(0, len(items), args.eval_bs):
+            chunk = items[bstart:bstart + args.eval_bs]
+            B = len(chunk)
+            buf = torch.zeros(B, seq_len, dtype=torch.long, device=device)
+            lens = [len(c[1]) for c in chunk]
+            for bi, (_, prompt, _, _) in enumerate(chunk):
+                buf[bi, :len(prompt)] = torch.tensor(prompt, dtype=torch.long,
+                                                     device=device)
+            alive = [True] * B
+            gens = [[] for _ in range(B)]
+            while any(alive):
+                Lmax = max(lens)
+                if Lmax >= seq_len:
+                    break
+                log_probs, _ = model(buf[:, :Lmax], mem_tokens, mem_emit_ids,
+                                     mem_pooled=mem_pooled)
+                pos = torch.tensor([l - 1 for l in lens], device=device)
+                nxt = log_probs[torch.arange(B, device=device), pos].argmax(-1)
+                nxt = nxt.tolist()
+                for bi in range(B):
+                    if not alive[bi]:
+                        continue
+                    tok = nxt[bi]
+                    if tok == eos_id or lens[bi] >= seq_len:
+                        alive[bi] = False
+                        continue
+                    gens[bi].append(tok)
+                    buf[bi, lens[bi]] = tok
+                    lens[bi] += 1
+            for bi, (i, prompt, tgt_ids, p) in enumerate(chunk):
+                score_one(i, prompt[:-1], gens[bi], tgt_ids)
+            done = min(bstart + args.eval_bs, len(items))
+            print(f"  ...decoded {done}/{len(items)} "
+                  f"({time.time() - t0:.0f}s)", flush=True)
 
     print(f"\nVal examples: {n}")
     print(f"Exact match (whitespace-normalized): {100 * exact / max(1, n):.2f}%")
@@ -545,6 +585,8 @@ if __name__ == "__main__":
     ap.add_argument("--warmup", type=int, default=20)
     ap.add_argument("--max-lr", type=float, default=2.5e-4)
     ap.add_argument("--show", type=int, default=5, help="failed examples to print in --eval")
+    ap.add_argument("--eval-bs", type=int, default=64,
+                    help="batch size for --eval greedy decoding")
     ap.add_argument("--show-jargon", type=str, default=None,
                     help="in --eval, only print failures whose prompt matches this jargon label")
     args = ap.parse_args()
