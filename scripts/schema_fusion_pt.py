@@ -425,7 +425,17 @@ def evaluate(args):
                     stats[label][0] += ok
                     stats[label][1] += ok_vb
 
-            if shown < args.show and not ok:
+            if args.show_jargon:
+                want = any(any(p.search(plo) for p in pats)
+                           for label, pats in jargon_specs
+                           if label.lower() == args.show_jargon.lower())
+                if want and not ok and shown < args.show:
+                    shown += 1
+                    print(f"--- example {i} [{args.show_jargon}] ---")
+                    print("Q   :", prompt_txt[:140])
+                    print("GOLD:", gold_sql[:200])
+                    print("PRED:", pred_sql[:200])
+            elif shown < args.show and not ok:
                 shown += 1
                 print(f"--- example {i} ---")
                 print("Q   :", prompt_txt[:120])
@@ -535,6 +545,8 @@ if __name__ == "__main__":
     ap.add_argument("--warmup", type=int, default=20)
     ap.add_argument("--max-lr", type=float, default=2.5e-4)
     ap.add_argument("--show", type=int, default=5, help="failed examples to print in --eval")
+    ap.add_argument("--show-jargon", type=str, default=None,
+                    help="in --eval, only print failures whose prompt matches this jargon label")
     args = ap.parse_args()
     if args.eval:
         evaluate(args)

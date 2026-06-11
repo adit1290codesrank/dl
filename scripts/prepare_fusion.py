@@ -139,18 +139,36 @@ def generate_dataset():
         return V_bpe + S + j
 
     # ---- Memory bank: (key_text, emit_id) -------------------------------
+    # CANONICAL EMIT IDS: column names that exist in multiple tables (SMU,
+    # InvoiceDate, ...) get one memory row per table, but ALL rows emit the
+    # SAME canonical id -- the one target encoding uses (schema_dict). With
+    # per-table ids, the duplicate rows were pure distractors: attention on
+    # "SMU IN <other table>" earned zero credit and trained the model away
+    # from the right column. scatter_add accumulates multi-row -> one id,
+    # exactly like synonym rows.
+    def canon_vid(el):
+        return schema_vid(schema_dict[el["name"].lower()])
+
     memory_rows = []
-    for i, el in enumerate(schema_elements):
-        memory_rows.append((el["key_text"], schema_vid(i)))
-    for i, el in enumerate(schema_elements):
+    seen_rows = set()
+
+    def add_row(key_text, vid):
+        k = (key_text.lower(), vid)
+        if k not in seen_rows:
+            seen_rows.add(k)
+            memory_rows.append((key_text, vid))
+
+    for el in schema_elements:
+        add_row(el["key_text"], canon_vid(el))
+    for el in schema_elements:
         for syn in el["synonyms"]:
-            memory_rows.append((syn, schema_vid(i)))
+            add_row(syn, canon_vid(el))
     for term, idx in syn_jargon:
-        memory_rows.append((term, schema_vid(idx)))
+        add_row(term, schema_vid(idx))
     n_frag_keys = 0
     for j, e in enumerate(frag_entries):
         for k in e["keys"]:
-            memory_rows.append((k, frag_vid(j)))
+            add_row(k, frag_vid(j))
             n_frag_keys += 1
     M = len(memory_rows)
     print(f"Memory rows M = {M} ({S} schema + "
@@ -320,6 +338,11 @@ def generate_dataset():
           f"({roundtrip_fail} failures)")
     for label, count in frag_counts.items():
         print(f"Fragment replacements for {label!r}: {count}")
+        if count == 0:
+            print(f"  [WARN] fragment {label!r} matches ZERO targets -- its "
+                  f"memory rows are pure distractors (they share attention "
+                  f"with live rows but can never be correct). Remove it or "
+                  f"fix its expansion text.")
     if frag_counts.get("MPY", 1) == 0:
         if any("Protective Coating" in s["output"] for s in samples):
             raise AssertionError("MPY fragment matched 0 times but its expansion "
