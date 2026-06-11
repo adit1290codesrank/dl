@@ -257,6 +257,89 @@ def greedy_decode(model, prompts, mem_tokens, mem_types, mem_emit_ids,
     return outs
 
 
+def beam_decode(model, prompts, mem_tokens, mem_types, mem_emit_ids,
+                seq_len, eos_id, device, K=5, bs=16, alpha=0.7, verbose=False):
+    """Batched beam search. Greedy decoding commits irreversibly to the first
+    borderline token; a beam keeps K alternatives alive, which directly
+    attacks the teacher-forced-vs-autoregressive gap. Within one example all
+    alive beams advance in lock-step (same length), so the right-padded
+    causal-mask batching trick still applies. Hypotheses are ranked by
+    log-prob normalized with a length penalty len**alpha."""
+    outs = []
+    t0 = time.time()
+    with torch.no_grad():
+        mem_pooled = model.encode_memory(mem_tokens, mem_types)
+        for bstart in range(0, len(prompts), bs):
+            chunk = prompts[bstart:bstart + bs]
+            B = len(chunk)
+            BK = B * K
+            buf = torch.zeros(BK, seq_len, dtype=torch.long, device=device)
+            for bi, pr in enumerate(chunk):
+                t = torch.tensor(pr, dtype=torch.long, device=device)
+                buf[bi * K:(bi + 1) * K, :len(pr)] = t
+            plen = [len(pr) for pr in chunk]
+            cur = list(plen)                       # per-example current length
+            scores = torch.full((B, K), float("-inf"), device=device)
+            scores[:, 0] = 0.0                     # start from a single beam
+            gens = [[[] for _ in range(K)] for _ in range(B)]
+            finished = [[] for _ in range(B)]      # (norm_score, tokens)
+            done = [False] * B
+
+            while not all(done) and max(cur) < seq_len:
+                Lmax = max(cur)
+                lp, _ = model(buf[:, :Lmax], mem_tokens, mem_types,
+                              mem_emit_ids, mem_pooled=mem_pooled)
+                pos = torch.tensor([cur[bi // K] - 1 for bi in range(BK)],
+                                   device=device)
+                step_lp = lp[torch.arange(BK, device=device), pos]   # [BK, V]
+                Vsz = step_lp.shape[-1]
+                cand = (scores.view(BK, 1) + step_lp).view(B, K * Vsz)
+                top_sc, top_idx = cand.topk(2 * K, dim=-1)
+
+                new_buf = buf.clone()
+                new_scores = torch.full((B, K), float("-inf"), device=device)
+                for b in range(B):
+                    if done[b]:
+                        continue
+                    new_gens, slot = [[] for _ in range(K)], 0
+                    for j in range(2 * K):
+                        sc = float(top_sc[b, j])
+                        if sc == float("-inf"):
+                            break
+                        par = int(top_idx[b, j]) // Vsz
+                        tok = int(top_idx[b, j]) % Vsz
+                        if tok == eos_id:
+                            norm = sc / max(1, len(gens[b][par])) ** alpha
+                            finished[b].append((norm, list(gens[b][par])))
+                        elif slot < K:
+                            src = b * K + par
+                            dst = b * K + slot
+                            new_buf[dst, :cur[b]] = buf[src, :cur[b]]
+                            new_buf[dst, cur[b]] = tok
+                            new_scores[b, slot] = sc
+                            new_gens[slot] = gens[b][par] + [tok]
+                            slot += 1
+                    gens[b] = new_gens
+                    if len(finished[b]) >= K or slot == 0:
+                        done[b] = True
+                        new_scores[b, :] = float("-inf")
+                    else:
+                        cur[b] += 1
+                buf, scores = new_buf, new_scores
+
+            for b in range(B):
+                if finished[b]:
+                    outs.append(max(finished[b], key=lambda x: x[0])[1])
+                else:
+                    # nothing reached [eos]: fall back to best alive beam
+                    k = int(scores[b].argmax())
+                    outs.append(gens[b][k])
+            if verbose:
+                print(f"  ...beam-decoded {len(outs)}/{len(prompts)} "
+                      f"({time.time() - t0:.0f}s)", flush=True)
+    return outs
+
+
 def collect_prompts(val_X, val_Y, eos_id):
     """-> list of (example idx, prompt ids incl. [sep], target ids, prompt_len)."""
     items = []
@@ -539,11 +622,17 @@ def evaluate(args):
             print("GOLD:", gold_sql[:160])
             print("PRED:", pred_sql[:160])
 
-    # Batched greedy decode over all val prompts (see greedy_decode).
+    # Batched decode over all val prompts: greedy, or beam if --beam > 1.
     items = collect_prompts(val_X, val_Y, eos_id)
-    gens = greedy_decode(model, [p for _, p, _, _ in items], mem_tokens,
-                         mem_types, mem_emit_ids, seq_len, eos_id, device,
-                         bs=args.eval_bs, verbose=True)
+    prompts = [p for _, p, _, _ in items]
+    if args.beam > 1:
+        gens = beam_decode(model, prompts, mem_tokens, mem_types, mem_emit_ids,
+                           seq_len, eos_id, device, K=args.beam,
+                           bs=max(1, args.eval_bs // args.beam), verbose=True)
+    else:
+        gens = greedy_decode(model, prompts, mem_tokens, mem_types,
+                             mem_emit_ids, seq_len, eos_id, device,
+                             bs=args.eval_bs, verbose=True)
     for (i, prompt, tgt_ids, p), gen in zip(items, gens):
         score_one(i, prompt[:-1], gen, tgt_ids)
 
@@ -624,8 +713,12 @@ def ask(args):
     questions = [args.q] if args.q else PROBE_QUESTIONS
     slotted = [extract_slots(q) for q in questions]
     prompts = [tokenizer.encode(dq).ids + [sep_id] for dq, _ in slotted]
-    gens = greedy_decode(model, prompts, mem_tokens, mem_types, mem_emit_ids,
-                         seq_len, eos_id, device)
+    if args.beam > 1:
+        gens = beam_decode(model, prompts, mem_tokens, mem_types, mem_emit_ids,
+                           seq_len, eos_id, device, K=args.beam)
+    else:
+        gens = greedy_decode(model, prompts, mem_tokens, mem_types,
+                             mem_emit_ids, seq_len, eos_id, device)
     for q, (_, slot_values), gen in zip(questions, slotted, gens):
         print(f"Q   : {q}")
         if slot_values:
@@ -647,6 +740,8 @@ if __name__ == "__main__":
                     help="batch size for --eval greedy decoding")
     ap.add_argument("--probe-n", type=int, default=256,
                     help="val examples for the per-epoch greedy exact-match probe")
+    ap.add_argument("--beam", type=int, default=1,
+                    help="beam width for --eval/--ask decoding (1 = greedy)")
     ap.add_argument("--show-jargon", type=str, default=None,
                     help="in --eval, only print failures whose prompt matches this jargon label")
     args = ap.parse_args()
