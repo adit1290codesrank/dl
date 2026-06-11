@@ -29,6 +29,7 @@ import struct
 import array
 import math
 import os
+import random
 import re
 import sys
 import time
@@ -79,6 +80,17 @@ class DeepFusionNet(nn.Module):
         self.pos_emb = nn.Embedding(max_len, d)
         self.blocks = nn.ModuleList(DecoderBlock(d, heads) for _ in range(depth))
         self.final_ln = nn.LayerNorm(d)
+        # Memory row type (0 table / 1 column / 2 fragment) added to each key:
+        # bag-of-subwords pooling alone permits type errors like emitting a
+        # table name in a column slot.
+        self.type_emb = nn.Embedding(3, d)
+        # DEDICATED pointer head, decoupled from the per-block cross-attention.
+        # Previously the pointer distribution was the last block's averaged
+        # attention -- the same mechanism that builds generation context.
+        # Sharing it made pointing quality a lottery over where that attention
+        # settled, causing per-family flip-flops between runs.
+        self.ptr_q = nn.Linear(d, d)
+        self.ptr_k = nn.Linear(d, d)
         self.p_gen_proj = nn.Linear(d, 1)
         # Bias > 0 keeps p_gen high early so the flat pointer distribution
         # doesn't drown the generator. With the compact vocab P_vocab is far
@@ -89,22 +101,24 @@ class DeepFusionNet(nn.Module):
         # tied-softmax logits explode (std ~ sqrt(d)) and saturates training.
         nn.init.normal_(self.tok_emb.weight, std=0.02)
         nn.init.normal_(self.pos_emb.weight, std=0.02)
+        nn.init.normal_(self.type_emb.weight, std=0.02)
 
-    def encode_memory(self, mem_tokens):
-        # mem_tokens: [M, max_mem_toks] -> masked mean-pool -> [M, d].
+    def encode_memory(self, mem_tokens, mem_types):
+        # mem_tokens: [M, max_mem_toks] -> masked mean-pool + type -> [M, d].
         # No self-attention over memory rows: keeps each row's identity crisp.
         emb = self.tok_emb(mem_tokens)
         mask = (mem_tokens != 0).float().unsqueeze(-1)
-        return (emb * mask).sum(1) / mask.sum(1).clamp(min=1.0)
+        pooled = (emb * mask).sum(1) / mask.sum(1).clamp(min=1.0)
+        return pooled + self.type_emb(mem_types)
 
-    def forward(self, X, mem_tokens, mem_emit_ids, mem_pooled=None):
+    def forward(self, X, mem_tokens, mem_types, mem_emit_ids, mem_pooled=None):
         B, T = X.shape
         M = mem_tokens.shape[0]
         # mem_pooled: precomputed encode_memory() output -- pass it during
         # autoregressive decoding so the (static) memory bank isn't re-pooled
         # on every generated token.
         if mem_pooled is None:
-            mem_pooled = self.encode_memory(mem_tokens)
+            mem_pooled = self.encode_memory(mem_tokens, mem_types)
         mem = mem_pooled.unsqueeze(0).expand(B, -1, -1)
         pos = torch.arange(T, device=X.device)
         x = self.tok_emb(X) + self.pos_emb(pos).unsqueeze(0)
@@ -121,13 +135,17 @@ class DeepFusionNet(nn.Module):
 
         p_gen = torch.sigmoid(self.p_gen_proj(ln_out)).float()  # [B, T, 1]
 
-        # Pointer branch: scatter last block's cross-attn weights into vocab
-        # space. Multiple memory rows (synonyms/jargon) may share an emit ID;
-        # scatter_add accumulates them.
-        w = w.float()
+        # Pointer branch: DEDICATED pointer attention over the memory keys
+        # (own Q/K projections, decoupled from the context cross-attention),
+        # scattered into vocab space. Multiple memory rows (synonyms/jargon)
+        # may share an emit ID; scatter_add accumulates them.
+        q = self.ptr_q(ln_out)                                  # [B, T, d]
+        k = self.ptr_k(mem_pooled)                              # [M, d]
+        ptr_logits = (q @ k.t()).float() / math.sqrt(q.shape[-1])
+        P_ptr = F.softmax(ptr_logits, dim=-1)                   # [B, T, M]
         P_mem = torch.zeros(B, T, self.V, device=X.device)
         idx = mem_emit_ids.view(1, 1, M).expand(B, T, M)
-        P_mem.scatter_add_(2, idx, w)
+        P_mem.scatter_add_(2, idx, P_ptr)
 
         # +eps instead of clamp: clamp has zero gradient below the floor, which
         # silently kills the learning signal for any target the model currently
@@ -152,6 +170,10 @@ def load_dataset(bin_path):
         mem_tokens.fromfile(f, M * max_mem_toks)
         mem_tokens = torch.tensor(mem_tokens, dtype=torch.long).view(M, max_mem_toks)
 
+        mem_types = array.array('f')
+        mem_types.fromfile(f, M)
+        mem_types = torch.tensor(mem_types, dtype=torch.long)
+
         def read_set(n):
             X = array.array('f')
             X.fromfile(f, n * seq_len)
@@ -173,6 +195,7 @@ def load_dataset(bin_path):
         "V": V, "V_bpe": V_bpe, "M": M, "max_mem_toks": max_mem_toks,
         "S": S, "J": J,
         "mem_emit_ids": mem_emit_ids, "mem_tokens": mem_tokens,
+        "mem_types": mem_types,
         "train": (train_X, train_Y), "val": (val_X, val_Y),
     }
 
@@ -187,9 +210,76 @@ def load_expansions():
 
 
 # --------------------------------------------------------------------------
+# Batched greedy decoding (shared by --eval, --ask and the training-time
+# exact-match probe). Right-padding is safe under the causal mask: pad sits
+# in each sequence's future and is never attended.
+# --------------------------------------------------------------------------
+def greedy_decode(model, prompts, mem_tokens, mem_types, mem_emit_ids,
+                  seq_len, eos_id, device, bs=256, verbose=False):
+    """prompts: list of token-id lists. Returns list of generated id lists."""
+    outs = []
+    t0 = time.time()
+    with torch.no_grad():
+        mem_pooled = model.encode_memory(mem_tokens, mem_types)
+        for bstart in range(0, len(prompts), bs):
+            chunk = prompts[bstart:bstart + bs]
+            B = len(chunk)
+            buf = torch.zeros(B, seq_len, dtype=torch.long, device=device)
+            lens = [len(p) for p in chunk]
+            for bi, pr in enumerate(chunk):
+                buf[bi, :len(pr)] = torch.tensor(pr, dtype=torch.long,
+                                                 device=device)
+            alive = [True] * B
+            gens = [[] for _ in range(B)]
+            while any(alive):
+                Lmax = max(lens)
+                if Lmax >= seq_len:
+                    break
+                log_probs, _ = model(buf[:, :Lmax], mem_tokens, mem_types,
+                                     mem_emit_ids, mem_pooled=mem_pooled)
+                pos = torch.tensor([l - 1 for l in lens], device=device)
+                nxt = log_probs[torch.arange(B, device=device), pos]
+                nxt = nxt.argmax(-1).tolist()
+                for bi in range(B):
+                    if not alive[bi]:
+                        continue
+                    tok = nxt[bi]
+                    if tok == eos_id or lens[bi] >= seq_len:
+                        alive[bi] = False
+                        continue
+                    gens[bi].append(tok)
+                    buf[bi, lens[bi]] = tok
+                    lens[bi] += 1
+            outs.extend(gens)
+            if verbose:
+                print(f"  ...decoded {len(outs)}/{len(prompts)} "
+                      f"({time.time() - t0:.0f}s)", flush=True)
+    return outs
+
+
+def collect_prompts(val_X, val_Y, eos_id):
+    """-> list of (example idx, prompt ids incl. [sep], target ids, prompt_len)."""
+    items = []
+    for i in range(len(val_X)):
+        Y = val_Y[i]
+        sup = (Y != -100).nonzero().view(-1)
+        if len(sup) == 0:
+            continue
+        p = int(sup[0])  # first supervised position; X[:p+1] = prompt + [sep]
+        tgt = [int(t) for t in Y[sup] if int(t) != eos_id]
+        items.append((i, val_X[i][:p + 1].tolist(), tgt, p))
+    return items
+
+
+# --------------------------------------------------------------------------
 # Train
 # --------------------------------------------------------------------------
 def train(args):
+    # Seed everything: per-family results were flip-flopping between runs
+    # purely from init/shuffle randomness, making changes impossible to judge.
+    torch.manual_seed(42)
+    random.seed(42)
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
@@ -203,7 +293,16 @@ def train(args):
     val_loader = torch.utils.data.DataLoader(val_ds, batch_size=args.bs)
 
     mem_tokens = data["mem_tokens"].to(device)
+    mem_types = data["mem_types"].to(device)
     mem_emit_ids = data["mem_emit_ids"].to(device)
+
+    # Probe set for the training-time greedy exact-match: this is the metric
+    # checkpoints are selected on. Teacher-forced top5 (the old criterion)
+    # correlates poorly with end-to-end decoding quality.
+    eos_id = 4
+    probe = collect_prompts(*data["val"], eos_id)[:args.probe_n]
+    probe_prompts = [p for _, p, _, _ in probe]
+    probe_tgts = [t for _, _, t, _ in probe]
 
     model = DeepFusionNet(data["V"], data["V_bpe"], data["seq_len"],
                           d=256, heads=8, depth=4).to(device)
@@ -222,9 +321,10 @@ def train(args):
     # Append mode: resuming a run continues the same log.
     if not os.path.exists(log_path):
         with open(log_path, "w") as lf:
-            lf.write("epoch,train_loss,val_loss,top1,top5,copy_acc,pgen_copy,lr\n")
+            lf.write("epoch,train_loss,val_loss,top1,top5,copy_acc,"
+                     "greedy_em,pgen_copy,lr\n")
 
-    best_top5 = -1.0
+    best_greedy = -1.0
     for epoch in range(1, args.epochs + 1):
         model.train()
         if epoch <= args.warmup:
@@ -246,7 +346,7 @@ def train(args):
             X, Y = X.to(device), Y.to(device)
             optimizer.zero_grad()
             with torch.amp.autocast('cuda', enabled=use_amp):
-                log_probs, _ = model(X, mem_tokens, mem_emit_ids)
+                log_probs, _ = model(X, mem_tokens, mem_types, mem_emit_ids)
             loss = criterion(log_probs.view(-1, data["V"]), Y.view(-1))
             # Insurance for an unattended run: never let a non-finite loss
             # poison the weights -- drop that step and carry on.
@@ -270,7 +370,7 @@ def train(args):
             for X, Y in val_loader:
                 X, Y = X.to(device), Y.to(device)
                 with torch.amp.autocast('cuda', enabled=use_amp):
-                    log_probs, p_gen = model(X, mem_tokens, mem_emit_ids)
+                    log_probs, p_gen = model(X, mem_tokens, mem_types, mem_emit_ids)
                 lp = log_probs.view(-1, data["V"])
                 Yf = Y.view(-1)
                 val_loss += criterion(lp, Yf).item()
@@ -296,22 +396,31 @@ def train(args):
         top5a = 100 * c5 / max(1, total)
         copy_acc = 100 * copy_c1 / max(1, copy_total)
         pgen_copy = pgen_copy_sum / max(1, pgen_copy_n)
+        # ---- greedy exact-match probe (the metric that actually matters) ----
+        # Decodes args.probe_n val examples autoregressively (batched, a few
+        # seconds) and checkpoints on it. Teacher-forced top5, the previous
+        # criterion, correlates poorly with end-to-end generation quality.
+        gens = greedy_decode(model, probe_prompts, mem_tokens, mem_types,
+                             mem_emit_ids, data["seq_len"], eos_id, device)
+        greedy_em = 100 * sum(g == t for g, t in zip(gens, probe_tgts)) / max(1, len(probe))
+
         elapsed = time.time() - t0
         print(f"Epoch {epoch}/{args.epochs} | Loss: {train_loss:.4f} | "
               f"Val Loss: {val_loss:.4f} | Top1: {top1:.2f}% | Top5: {top5a:.2f}% | "
-              f"CopyAcc: {copy_acc:.2f}% | pgen@copy: {pgen_copy:.3f} | "
-              f"LR: {lr:.2e} | Time: {elapsed:.2f}s")
+              f"CopyAcc: {copy_acc:.2f}% | GreedyEM: {greedy_em:.2f}% | "
+              f"pgen@copy: {pgen_copy:.3f} | LR: {lr:.2e} | Time: {elapsed:.2f}s")
 
         with open(log_path, "a") as lf:
             lf.write(f"{epoch},{train_loss:.6f},{val_loss:.6f},"
-                     f"{top1:.4f},{top5a:.4f},{copy_acc:.4f},{pgen_copy:.6f},{lr:.2e}\n")
+                     f"{top1:.4f},{top5a:.4f},{copy_acc:.4f},{greedy_em:.4f},"
+                     f"{pgen_copy:.6f},{lr:.2e}\n")
 
-        if top5a > best_top5:
-            best_top5 = top5a
+        if greedy_em > best_greedy:
+            best_greedy = greedy_em
             os.makedirs(os.path.join(BASE, "weights"), exist_ok=True)
             path = os.path.join(BASE, "weights", "schema_fusion_pt.pt")
             torch.save(model.state_dict(), path)
-            print(f"    [checkpoint] new best Top5 {top5a:.2f}% -> {path}")
+            print(f"    [checkpoint] new best GreedyEM {greedy_em:.2f}% -> {path}")
 
 
 # --------------------------------------------------------------------------
@@ -362,6 +471,7 @@ def evaluate(args):
     model.eval()
 
     mem_tokens = data["mem_tokens"].to(device)
+    mem_types = data["mem_types"].to(device)
     mem_emit_ids = data["mem_emit_ids"].to(device)
     val_X, val_Y = data["val"]
     seq_len = data["seq_len"]
@@ -429,58 +539,13 @@ def evaluate(args):
             print("GOLD:", gold_sql[:160])
             print("PRED:", pred_sql[:160])
 
-    # Collect (example idx, prompt ids, target ids) once, then decode in
-    # BATCHES: right-padding is safe under the causal mask (pad sits in each
-    # sequence's future and is never attended), so a whole batch advances one
-    # token per forward pass instead of one example at a time. Together with
-    # the precomputed memory encoding this is ~batch-size x faster.
-    items = []
-    for i in range(len(val_X)):
-        Y = val_Y[i]
-        sup = (Y != -100).nonzero().view(-1)
-        if len(sup) == 0:
-            continue
-        p = int(sup[0])  # first supervised position; X[:p+1] = prompt + [sep]
-        tgt_ids = [int(t) for t in Y[sup] if int(t) != eos_id]
-        items.append((i, val_X[i][:p + 1].tolist(), tgt_ids, p))
-
-    t0 = time.time()
-    with torch.no_grad():
-        mem_pooled = model.encode_memory(mem_tokens)
-        for bstart in range(0, len(items), args.eval_bs):
-            chunk = items[bstart:bstart + args.eval_bs]
-            B = len(chunk)
-            buf = torch.zeros(B, seq_len, dtype=torch.long, device=device)
-            lens = [len(c[1]) for c in chunk]
-            for bi, (_, prompt, _, _) in enumerate(chunk):
-                buf[bi, :len(prompt)] = torch.tensor(prompt, dtype=torch.long,
-                                                     device=device)
-            alive = [True] * B
-            gens = [[] for _ in range(B)]
-            while any(alive):
-                Lmax = max(lens)
-                if Lmax >= seq_len:
-                    break
-                log_probs, _ = model(buf[:, :Lmax], mem_tokens, mem_emit_ids,
-                                     mem_pooled=mem_pooled)
-                pos = torch.tensor([l - 1 for l in lens], device=device)
-                nxt = log_probs[torch.arange(B, device=device), pos].argmax(-1)
-                nxt = nxt.tolist()
-                for bi in range(B):
-                    if not alive[bi]:
-                        continue
-                    tok = nxt[bi]
-                    if tok == eos_id or lens[bi] >= seq_len:
-                        alive[bi] = False
-                        continue
-                    gens[bi].append(tok)
-                    buf[bi, lens[bi]] = tok
-                    lens[bi] += 1
-            for bi, (i, prompt, tgt_ids, p) in enumerate(chunk):
-                score_one(i, prompt[:-1], gens[bi], tgt_ids)
-            done = min(bstart + args.eval_bs, len(items))
-            print(f"  ...decoded {done}/{len(items)} "
-                  f"({time.time() - t0:.0f}s)", flush=True)
+    # Batched greedy decode over all val prompts (see greedy_decode).
+    items = collect_prompts(val_X, val_Y, eos_id)
+    gens = greedy_decode(model, [p for _, p, _, _ in items], mem_tokens,
+                         mem_types, mem_emit_ids, seq_len, eos_id, device,
+                         bs=args.eval_bs, verbose=True)
+    for (i, prompt, tgt_ids, p), gen in zip(items, gens):
+        score_one(i, prompt[:-1], gen, tgt_ids)
 
     print(f"\nVal examples: {n}")
     print(f"Exact match (whitespace-normalized): {100 * exact / max(1, n):.2f}%")
@@ -553,26 +618,19 @@ def ask(args):
         os.path.join(BASE, "weights", "schema_fusion_pt.pt"), map_location=device))
     model.eval()
     mem_tokens = data["mem_tokens"].to(device)
+    mem_types = data["mem_types"].to(device)
     mem_emit_ids = data["mem_emit_ids"].to(device)
 
     questions = [args.q] if args.q else PROBE_QUESTIONS
-    with torch.no_grad():
-        for q in questions:
-            delexed, slot_values = extract_slots(q)
-            seq = tokenizer.encode(delexed).ids + [sep_id]
-            gen = []
-            for _ in range(seq_len - len(seq)):
-                X = torch.tensor(seq, dtype=torch.long, device=device).unsqueeze(0)
-                log_probs, _ = model(X, mem_tokens, mem_emit_ids)
-                nxt = int(log_probs[0, -1].argmax())
-                if nxt == eos_id:
-                    break
-                gen.append(nxt)
-                seq.append(nxt)
-            print(f"Q   : {q}")
-            if slot_values:
-                print(f"slots: {dict((f'[val{i+1}]', v) for i, v in enumerate(slot_values))}")
-            print(f"SQL : {relex(detok(gen), slot_values)}\n")
+    slotted = [extract_slots(q) for q in questions]
+    prompts = [tokenizer.encode(dq).ids + [sep_id] for dq, _ in slotted]
+    gens = greedy_decode(model, prompts, mem_tokens, mem_types, mem_emit_ids,
+                         seq_len, eos_id, device)
+    for q, (_, slot_values), gen in zip(questions, slotted, gens):
+        print(f"Q   : {q}")
+        if slot_values:
+            print(f"slots: {dict((f'[val{i+1}]', v) for i, v in enumerate(slot_values))}")
+        print(f"SQL : {relex(detok(gen), slot_values)}\n")
 
 
 if __name__ == "__main__":
@@ -587,6 +645,8 @@ if __name__ == "__main__":
     ap.add_argument("--show", type=int, default=5, help="failed examples to print in --eval")
     ap.add_argument("--eval-bs", type=int, default=64,
                     help="batch size for --eval greedy decoding")
+    ap.add_argument("--probe-n", type=int, default=256,
+                    help="val examples for the per-epoch greedy exact-match probe")
     ap.add_argument("--show-jargon", type=str, default=None,
                     help="in --eval, only print failures whose prompt matches this jargon label")
     args = ap.parse_args()

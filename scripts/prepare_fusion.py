@@ -149,33 +149,43 @@ def generate_dataset():
     def canon_vid(el):
         return schema_vid(schema_dict[el["name"].lower()])
 
+    # Row types let the model learn WHAT a row is, not just its subwords:
+    # 0 = table, 1 = column, 2 = fragment (procedures, SQL clauses). Without
+    # this, mean-pooled keys allow type errors like emitting a table name in
+    # a column slot.
+    TYPE_TABLE, TYPE_COLUMN, TYPE_FRAGMENT = 0, 1, 2
     memory_rows = []
+    mem_types = []
     seen_rows = set()
 
-    def add_row(key_text, vid):
+    def add_row(key_text, vid, typ):
         k = (key_text.lower(), vid)
         if k not in seen_rows:
             seen_rows.add(k)
             memory_rows.append((key_text, vid))
+            mem_types.append(typ)
+
+    def el_type(el):
+        return TYPE_TABLE if el["kind"] == "table" else TYPE_COLUMN
 
     for el in schema_elements:
-        add_row(el["key_text"], canon_vid(el))
+        add_row(el["key_text"], canon_vid(el), el_type(el))
     # Bare-name key per element: the descriptive key ("COLUMN X IN T") dilutes
     # the distinguishing tokens across boilerplate and table names, which
     # confuses near-twin columns (PickListId vs PickListEmailDate vs ...).
     # When the question literally names a column, this undiluted key is the
     # sharp match. Dedupe collapses same-name columns to one row (canonical id).
     for el in schema_elements:
-        add_row(el["name"], canon_vid(el))
+        add_row(el["name"], canon_vid(el), el_type(el))
     for el in schema_elements:
         for syn in el["synonyms"]:
-            add_row(syn, canon_vid(el))
+            add_row(syn, canon_vid(el), el_type(el))
     for term, idx in syn_jargon:
-        add_row(term, schema_vid(idx))
+        add_row(term, schema_vid(idx), TYPE_COLUMN)
     n_frag_keys = 0
     for j, e in enumerate(frag_entries):
         for k in e["keys"]:
-            add_row(k, frag_vid(j))
+            add_row(k, frag_vid(j), TYPE_FRAGMENT)
             n_frag_keys += 1
     M = len(memory_rows)
     print(f"Memory rows M = {M} ({S} schema + "
@@ -389,6 +399,8 @@ def generate_dataset():
             f.write(struct.pack("i", v))
         array.array('f', [float(v) for v in mem_emit_ids]).tofile(f)
         array.array('f', [float(t) for row in mem_tokens for t in row]).tofile(f)
+        # row type per memory entry (0 table / 1 column / 2 fragment)
+        array.array('f', [float(t) for t in mem_types]).tofile(f)
         write_set(f, train_samples, n_train)
         write_set(f, val_samples, n_val)
 
@@ -398,8 +410,8 @@ def generate_dataset():
         for vid in sorted(expansions):
             f.write(f"{vid}|{expansions[vid].replace(chr(10), ' ')}\n")
     with open(os.path.join(out_dir, "fusion_memory.txt"), "w", encoding="utf-8") as f:
-        for key_text, vid in memory_rows:
-            f.write(f"{vid}|{key_text}\n")
+        for (key_text, vid), typ in zip(memory_rows, mem_types):
+            f.write(f"{vid}|{typ}|{key_text}\n")
 
     print(f"Successfully generated {out_bin}")
     print(f"Train: {n_train}, Val: {n_val}, SeqLen: {SEQ_LEN}, "
