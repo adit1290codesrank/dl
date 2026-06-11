@@ -506,6 +506,37 @@ def train(args):
             print(f"    [checkpoint] new best GreedyEM {greedy_em:.2f}% -> {path}")
 
 
+class _Tee:
+    """Mirror everything printed to stdout into a log file, so eval/ask
+    output survives the terminal scrollback and can be shared as text."""
+
+    def __init__(self, path, header):
+        self.f = open(path, "a", encoding="utf-8")
+        self.stdout = sys.stdout
+        self.f.write(f"\n{'=' * 70}\n{header}\n{'=' * 70}\n")
+
+    def write(self, s):
+        self.stdout.write(s)
+        self.f.write(s)
+
+    def flush(self):
+        self.stdout.flush()
+        self.f.flush()
+
+    def close(self):
+        self.f.close()
+        sys.stdout = self.stdout
+
+
+def tee_to_log(args, mode):
+    ts = time.strftime("%Y-%m-%d %H:%M:%S")
+    header = (f"[{ts}] {mode} | beam={args.beam} eval_bs={args.eval_bs} "
+              f"| checkpoint=weights/schema_fusion_pt.pt")
+    tee = _Tee(os.path.join(BASE, "eval_log.txt"), header)
+    sys.stdout = tee
+    return tee
+
+
 # --------------------------------------------------------------------------
 # Greedy-decode eval
 # --------------------------------------------------------------------------
@@ -746,8 +777,18 @@ if __name__ == "__main__":
                     help="in --eval, only print failures whose prompt matches this jargon label")
     args = ap.parse_args()
     if args.eval:
-        evaluate(args)
+        tee = tee_to_log(args, "EVAL")
+        try:
+            evaluate(args)
+        finally:
+            tee.close()
+        print(f"(full output appended to eval_log.txt)")
     elif args.ask or args.q:
-        ask(args)
+        tee = tee_to_log(args, "ASK" if args.ask else f"ASK --q {args.q!r}")
+        try:
+            ask(args)
+        finally:
+            tee.close()
+        print(f"(full output appended to eval_log.txt)")
     else:
         train(args)
