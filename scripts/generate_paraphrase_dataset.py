@@ -31,9 +31,21 @@ random.seed(7)
 BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 OUT = os.path.join(BASE, "data", "synthetic_dataset.json")
 
-N_TRAIN = 7200
-N_VAL = 1800
+N_TRAIN = 10400
+N_VAL = 2600
 VAL_TEMPLATES_PER_FAMILY = 2  # last K question templates are val-only
+
+# Carrier augmentation, TRAIN ONLY (val phrasings stay fixed so the benchmark
+# is comparable across runs). Teaches invariance to politeness/filler tokens
+# around the actual request -- the residual failure mode is novel carriers
+# collapsing near-twin choices to the more frequent twin.
+PREPENDS = ["", "", "", "", "please ", "hey ", "can you ", "quickly ",
+            "i need ", "pls ", "could you "]
+APPENDS = ["", "", "", "", " please", " thanks", " ?", " right away", " asap"]
+
+
+def augment_carrier(q):
+    return random.choice(PREPENDS) + q + random.choice(APPENDS)
 
 # Schema (INCLUDE_IN_MODEL only -- the memory bank can only emit these) for
 # the GENERAL T-SQL families: they teach compositional retrieval ("question
@@ -176,6 +188,9 @@ FAMILIES = [
         "ASM of customer {id}",
         "tell me the ASM for customer {id}",
         "which ASM handles customer code {id}",
+        "who handles customer {id} as ASM",
+        "name the ASM assigned to customer code {id}",
+        "what salesperson is the ASM of customer {id}",
         "Which salesperson is the ASM for customer code {id}?",
         "find the area sales manager for customer {id}",
     ], "SELECT SalesPersonName\nFROM AN_CUSTOMER_VS_ASM_RSM\nWHERE CustomerCode = '{id}'"),
@@ -191,6 +206,10 @@ FAMILIES = [
         "sales order for OBD number {id}",
         "give me the sales order number against OBD {id}",
         "SO number of the OBD {id}",
+        "fetch the sales order number for OBD {id}",
+        "tell me the SO number linked with OBD {id}",
+        "i want the sales order number of OBD {id}",
+        "OBD {id} belongs to which sales order",
         "Find the sales order number for OBD number {id}",
         "what SO is linked to OBD {id}",
     ], "SELECT SONum\nFROM AN_LOGISTICS_TRACKER\nWHERE PickListID = '{id}'"),
@@ -222,6 +241,9 @@ FAMILIES = [
         "top {n} customers by invoiced volume in {mon} without stock transfers",
         "Who are the top {n} customers on volume invoiced in {mon}, excluding stock transfer",
         "best {n} customers by volume invoiced for {mon} excluding stock transfers",
+        "who are our top {n} customers by invoiced volume in {mon} excluding stock transfers",
+        "rank the top {n} customers on volume invoiced during {mon}, ignore stock transfers",
+        "top {n} customers for {mon} by volume, no stock transfer",
         "List the top {n} customers based on volume invoiced in {mon} excluding Stock Transfers",
         "give top {n} customers by VolumeInvoiced during {mon}, no stock transfers",
     ], "SELECT TOP {n} ShipCustomerName\nFROM AN_LOGISTICS_TRACKER\nWHERE InvoiceDate BETWEEN '{m1}' AND '{m2}'\nAND NatureOfTransaction != 'Stock Transfer'\nGROUP BY ShipCustomerName\nORDER BY SUM(VolumeInvoiced) DESC"),
@@ -232,6 +254,8 @@ FAMILIES = [
         "List the SMUs operating out of {wh} warehouse",
         "which business units ship from {wh}",
         "distinct business units in the {wh} warehouse",
+        "which SMUs operate from the {wh} warehouse",
+        "business units present at {wh}",
         "show the SMU list for {wh} warehouse",
         "What business units do we have at {wh}?",
     ], "SELECT DISTINCT SMU\nFROM AN_LOGISTICS_TRACKER\nWHERE SiteId = '{wh}'"),
@@ -300,6 +324,8 @@ FAMILIES = [
         "What is the DOT (Delivery On Time) for {tr} for {mon}",
         "DOT percentage of {tr} in {mon}",
         "how was the delivery on time for {tr} during {mon}",
+        "delivery on time percentage for {tr} in {mon}",
+        "show me the DOT of {tr} for {mon}",
         "Delivery On Time for {tr}, {mon}",
         "what's the DOT for {tr} in {mon}",
     ], "EXEC Report_SingleTransporterDashboard '_CHATBOT_', 'deb', '{tr}', '{m1}', '{m2}'\nSELECT NumberOfConsignments, DOTPercentage\nFROM REPORT_SINGLE_TRANSPORTER_DASHBOARD"),
@@ -327,6 +353,10 @@ FAMILIES = [
         "for the OBDs below, {setter}\n{ids_lines}",
         "{setter} on all of these OBDs\n{ids_lines}",
         "kindly {setter} for the OBD list\n{ids_lines}",
+        "{setter} for all these OBDs\n{ids_lines}",
+        "go ahead and {setter} for the OBDs\n{ids_lines}",
+        "need to {setter} for the following\n{ids_lines}",
+        "{setter}, OBDs listed below\n{ids_lines}",
         "please {setter} on the following OBDs\n{ids_lines}",
         "{setter} for the listed OBDs\n{ids_lines}",
     ], "EXEC CB_OBDMassUpdate '_CB_USERNAME_', '{ids_csv}', '{field}', {value}"),
@@ -401,6 +431,8 @@ FAMILIES = [
         "List top {n} OBDs with most time taken for Invoicing to Dispatch for plant {plant} for OBD received after {mon}",
         "top {n} OBDs slowest from invoicing to dispatch at plant {plant} since {mon}",
         "which {n} OBDs took longest for Invoice to Dispatch for plant {plant} after {mon}",
+        "top {n} OBDs by invoicing to dispatch delay for plant {plant} after {mon}",
+        "invoicing to dispatch report, top {n} OBDs, plant {plant}, after {mon}",
         "{n} worst OBDs on invoicing-to-dispatch time for {plant}, received after {mon}",
         "slowest {n} OBDs invoice to dispatch, plant {plant}, after {mon}",
     ], "SELECT TOP {n} PickListId OBDNo, ShipCustomerName, SiteId Warehouse, \nISNULL(ShipToDestinationOverride, ShipToDestination) Destination, \nPickListEmailDate, InvoiceDate, InvoiceTime,\nISNULL(MtrlMvdFromFctryDateOverride,MtrlMvdFromFctryDate) DispatchDate, \nISNULL(MtrlMvdFromFctryTimeOverride,MtrlMvdFromFctrytime) DispatchTime,\ndbo.HoursDifferenceF(InvoiceDate,InvoiceTime,ISNULL(MtrlMvdFromFctryDateOverride,MtrlMvdFromFctryDate),\nISNULL(MtrlMvdFromFctryTimeOverride,MtrlMvdFromFctrytime)) InvoiceToDispatchInMinutes\nFROM AN_LOGISTICS_TRACKER\nWHERE PendingStatus NOT IN ('Cancelled', 'Pending Picking')\nAND ProdOrder = 0\nAND FromPlant = '{plant}'\nAND PickListEmailDate >= '{m1}'\nORDER BY InvoiceToDispatchInMinutes DESC"),
@@ -408,6 +440,9 @@ FAMILIES = [
         "List top {n} OBDs with most time taken for Picking to Dispatch for plant {plant} for OBD received after {mon}",
         "top {n} OBDs slowest from picking to dispatch at plant {plant} since {mon}",
         "which {n} OBDs took longest for Picking to Dispatch for plant {plant} after {mon}",
+        "top {n} OBDs by picking to dispatch delay for plant {plant} after {mon}",
+        "picking to dispatch report, top {n} OBDs, plant {plant}, after {mon}",
+        "report the {n} slowest picking to dispatch OBDs for plant {plant} since {mon}",
         "{n} worst OBDs on picking-to-dispatch time for {plant}, received after {mon}",
         "slowest {n} OBDs picking to dispatch, plant {plant}, after {mon}",
     ], "SELECT TOP {n} PickListId OBDNo, ShipCustomerName, SiteId Warehouse, \nISNULL(ShipToDestinationOverride, ShipToDestination) Destination, \nPickListEmailDate OBDEmailDate, PickListRetForInvDate OBDRetForInvDate, PickListRetForInvTime OBDRetForInvTime,\nISNULL(MtrlMvdFromFctryDateOverride,MtrlMvdFromFctryDate) DispatchDate, \nISNULL(MtrlMvdFromFctryTimeOverride,MtrlMvdFromFctrytime) DispatchTime, \ndbo.HoursDifferenceF(PickListRetForInvDate,PickListRetForInvTime,ISNULL(MtrlMvdFromFctryDateOverride,MtrlMvdFromFctryDate),ISNULL(MtrlMvdFromFctryTimeOverride,MtrlMvdFromFctrytime)) PickingToDispatchInMinutes\nFROM AN_LOGISTICS_TRACKER\nWHERE PendingStatus NOT IN ('Cancelled', 'Pending Picking')\nAND ProdOrder = 0\nAND FromPlant = '{plant}'\nAND PickListEmailDate >= '{m1}'\nORDER BY PickingToDispatchInMinutes DESC"),
@@ -426,6 +461,9 @@ FAMILIES = [
         "fetch {c_sel} of {t} where {c} equals {v}",
         "what is the {c_sel} in {t} when {c} is {v}",
         "select {c_sel} from {t} where {c} is {v}",
+        "value of {c_sel} in {t} where {c} is {v}",
+        "pull {c_sel} from {t} where the {c} equals {v}",
+        "in table {t}, {c_sel} where {c} is {v}",
         "from {t} give me {c_sel} where {c} is {v}",
         "find {c_sel} for rows in {t} whose {c} is {v}",
     ], "SELECT {c_sel}\nFROM {t}\nWHERE {c} = '{v}'"),
@@ -444,6 +482,8 @@ FAMILIES = [
         "give me {n} {c_sel} from {t} ranked by {c} {ordw}",
         "first {n} {c_sel} of {t} ordered on {c} {ordw}",
         "{n} {c_sel} from {t}, order by {c} {ordw}",
+        "top {n} {c_sel} sorted on {c} {ordw} from {t}",
+        "from {t} fetch the top {n} {c_sel} by {c} {ordw}",
         "Show top {n} {c_sel} ordered by {c} {ordw} in {t}",
         "what are the top {n} {c_sel} in {t} by {c} {ordw}",
     ], "SELECT TOP {n} {c_sel}\nFROM {t}\nORDER BY {c} {ord}"),
@@ -506,7 +546,7 @@ FAMILIES = [
 ]
 
 
-def render(family_idx, template, sql_template):
+def render(family_idx, template, sql_template, aug=False):
     vals = fill({})
     if "{setter}" in template:
         field, setter_text, value_tpl = random.choice(FIELD_SETTERS)
@@ -514,6 +554,8 @@ def render(family_idx, template, sql_template):
         vals["setter"] = setter_text.format(**vals)
         vals["value"] = value_tpl.format(**vals)
     q = template.format(**vals)
+    if aug:
+        q = augment_carrier(q)
     sql = sql_template.format(**vals)
     return {"input": q, "output": sql}
 
@@ -535,7 +577,7 @@ def main():
         tr_templates = templates[:-VAL_TEMPLATES_PER_FAMILY]
         va_templates = templates[-VAL_TEMPLATES_PER_FAMILY:]
         for _ in range(n_tr):
-            train.append(render(fi, random.choice(tr_templates), sql))
+            train.append(render(fi, random.choice(tr_templates), sql, aug=True))
         for _ in range(n_va):
             val.append(render(fi, random.choice(va_templates), sql))
 

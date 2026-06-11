@@ -71,14 +71,15 @@ class DecoderBlock(nn.Module):
 
 
 class DeepFusionNet(nn.Module):
-    def __init__(self, V, V_bpe, max_len, d=256, heads=8, depth=4):
+    def __init__(self, V, V_bpe, max_len, d=256, heads=8, depth=4, dropout=0.1):
         super().__init__()
         self.V = V
         self.V_bpe = V_bpe
         # ONE embedding: input tokens, memory keys, and tied output projection.
         self.tok_emb = nn.Embedding(V, d)
         self.pos_emb = nn.Embedding(max_len, d)
-        self.blocks = nn.ModuleList(DecoderBlock(d, heads) for _ in range(depth))
+        self.blocks = nn.ModuleList(DecoderBlock(d, heads, dropout)
+                                    for _ in range(depth))
         self.final_ln = nn.LayerNorm(d)
         # Memory row type (0 table / 1 column / 2 fragment) added to each key:
         # bag-of-subwords pooling alone permits type errors like emitting a
@@ -340,6 +341,22 @@ def beam_decode(model, prompts, mem_tokens, mem_types, mem_emit_ids,
     return outs
 
 
+def load_model(data, device):
+    """Build the model from the config stored INSIDE the checkpoint, so
+    --eval/--ask always match whatever size was trained (plain state_dicts
+    from older runs fall back to the original 256/8/4)."""
+    path = os.path.join(BASE, "weights", "schema_fusion_pt.pt")
+    ckpt = torch.load(path, map_location=device)
+    if isinstance(ckpt, dict) and "config" in ckpt:
+        cfg, state = ckpt["config"], ckpt["model"]
+    else:
+        cfg, state = {"d": 256, "heads": 8, "depth": 4}, ckpt
+    model = DeepFusionNet(data["V"], data["V_bpe"], data["seq_len"], **cfg).to(device)
+    model.load_state_dict(state)
+    model.eval()
+    return model
+
+
 def collect_prompts(val_X, val_Y, eos_id):
     """-> list of (example idx, prompt ids incl. [sep], target ids, prompt_len)."""
     items = []
@@ -387,9 +404,12 @@ def train(args):
     probe_prompts = [p for _, p, _, _ in probe]
     probe_tgts = [t for _, _, t, _ in probe]
 
+    cfg = {"d": args.dim, "heads": args.heads, "depth": args.depth,
+           "dropout": args.dropout}
     model = DeepFusionNet(data["V"], data["V_bpe"], data["seq_len"],
-                          d=256, heads=8, depth=4).to(device)
-    print(f"Parameters: {sum(p.numel() for p in model.parameters()):,}")
+                          **cfg).to(device)
+    print(f"Model: {cfg} | Parameters: "
+          f"{sum(p.numel() for p in model.parameters()):,}")
 
     optimizer = optim.AdamW(model.parameters(), lr=1e-6)
     criterion = nn.NLLLoss(ignore_index=-100)
@@ -502,7 +522,7 @@ def train(args):
             best_greedy = greedy_em
             os.makedirs(os.path.join(BASE, "weights"), exist_ok=True)
             path = os.path.join(BASE, "weights", "schema_fusion_pt.pt")
-            torch.save(model.state_dict(), path)
+            torch.save({"config": cfg, "model": model.state_dict()}, path)
             print(f"    [checkpoint] new best GreedyEM {greedy_em:.2f}% -> {path}")
 
 
@@ -578,11 +598,7 @@ def evaluate(args):
     def squash(s):
         return re.sub(r"\s+", "", s).lower()
 
-    model = DeepFusionNet(data["V"], data["V_bpe"], data["seq_len"],
-                          d=256, heads=8, depth=4).to(device)
-    path = os.path.join(BASE, "weights", "schema_fusion_pt.pt")
-    model.load_state_dict(torch.load(path, map_location=device))
-    model.eval()
+    model = load_model(data, device)
 
     mem_tokens = data["mem_tokens"].to(device)
     mem_types = data["mem_types"].to(device)
@@ -608,6 +624,10 @@ def evaluate(args):
                         for t in ["MPY", "ASM", "RSM", "SSM", "NSM"]]
     stats = {label: [0, 0, 0] for label, _ in jargon_specs}  # label -> [exact, value_blind, total]
     exact = exact_vb = wf = tok_exact = n = 0
+    # split: BUSINESS = prompt mentions any jargon/schema term from
+    # jargon_fusion.json (the actual product distribution); GENERAL = the
+    # synthetic random-column queries added for schema coverage.
+    biz_exact = biz_n = gen_exact = gen_n = 0
     shown = 0
 
     def value_blind(s):
@@ -620,6 +640,7 @@ def evaluate(args):
 
     def score_one(i, prompt_ids, gen, tgt_ids):
         nonlocal exact, exact_vb, tok_exact, wf, n, shown
+        nonlocal biz_exact, biz_n, gen_exact, gen_n
         pred_sql = detok(gen)
         gold_sql = detok(tgt_ids)
         prompt_txt = tokenizer.decode(prompt_ids, skip_special_tokens=False)
@@ -631,11 +652,19 @@ def evaluate(args):
         wf += well_formed(pred_sql)
         n += 1
         plo = prompt_txt.lower()
+        matched_any = False
         for label, pats in jargon_specs:
             if any(p.search(plo) for p in pats):
+                matched_any = True
                 stats[label][2] += 1
                 stats[label][0] += ok
                 stats[label][1] += ok_vb
+        if matched_any:
+            biz_exact += ok
+            biz_n += 1
+        else:
+            gen_exact += ok
+            gen_n += 1
         if args.show_jargon:
             want = any(any(p.search(plo) for p in pats)
                        for label, pats in jargon_specs
@@ -669,6 +698,10 @@ def evaluate(args):
 
     print(f"\nVal examples: {n}")
     print(f"Exact match (whitespace-normalized): {100 * exact / max(1, n):.2f}%")
+    print(f"  BUSINESS questions (jargon/term in prompt): "
+          f"{biz_exact}/{biz_n} ({100 * biz_exact / max(1, biz_n):.2f}%)")
+    print(f"  GENERAL synthetic queries:                  "
+          f"{gen_exact}/{gen_n} ({100 * gen_exact / max(1, gen_n):.2f}%)")
     print(f"Exact match VALUE-BLIND (literals masked): {100 * exact_vb / max(1, n):.2f}%")
     print(f"Token-sequence exact match:          {100 * tok_exact / max(1, n):.2f}%")
     print(f"Well-formed SQL:                     {100 * wf / max(1, n):.2f}%")
@@ -732,11 +765,7 @@ def ask(args):
             parts.append(tokenizer.decode(buf, skip_special_tokens=False))
         return " ".join(parts)
 
-    model = DeepFusionNet(data["V"], data["V_bpe"], data["seq_len"],
-                          d=256, heads=8, depth=4).to(device)
-    model.load_state_dict(torch.load(
-        os.path.join(BASE, "weights", "schema_fusion_pt.pt"), map_location=device))
-    model.eval()
+    model = load_model(data, device)
     mem_tokens = data["mem_tokens"].to(device)
     mem_types = data["mem_types"].to(device)
     mem_emit_ids = data["mem_emit_ids"].to(device)
@@ -766,6 +795,10 @@ if __name__ == "__main__":
     ap.add_argument("--bs", type=int, default=64)
     ap.add_argument("--warmup", type=int, default=20)
     ap.add_argument("--max-lr", type=float, default=2.5e-4)
+    ap.add_argument("--dim", type=int, default=256)
+    ap.add_argument("--heads", type=int, default=8)
+    ap.add_argument("--depth", type=int, default=4)
+    ap.add_argument("--dropout", type=float, default=0.1)
     ap.add_argument("--show", type=int, default=5, help="failed examples to print in --eval")
     ap.add_argument("--eval-bs", type=int, default=64,
                     help="batch size for --eval greedy decoding")
