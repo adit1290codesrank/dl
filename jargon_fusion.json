@@ -33,5 +33,12 @@
   {"keys": ["time taken to upload PODs", "average upload days"], "expansion": "AvgUploadDays"},
   {"keys": ["POD upload count"], "expansion": "PODUploadCount"},
   {"keys": ["number of consignments"], "expansion": "NumberOfConsignments"},
-  {"keys": ["Safexpress", "Safex", "Safe Express"], "expansion": "'SAFE EXPRESS'"}
+  {"keys": ["Safexpress", "Safex", "Safe Express"], "expansion": "'SAFE EXPRESS'"},
+  {"keys": ["Cube Logistics", "Cube"], "expansion": "'CUBE LOGISTICS'"},
+  {"keys": ["Synergy Baxis", "Synergy"], "expansion": "'SYNERGY BAXIS'"},
+  {"keys": ["Gati"], "expansion": "'GATI'"},
+  {"keys": ["Delhivery"], "expansion": "'DELHIVERY'"},
+  {"keys": ["TCI Express", "TCI"], "expansion": "'TCI EXPRESS'"},
+  {"keys": ["VRL Logistics", "VRL"], "expansion": "'VRL LOGISTICS'"},
+  {"keys": ["Blue Dart", "Bluedart"], "expansion": "'BLUE DART'"}
 ]

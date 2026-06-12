@@ -346,9 +346,13 @@ FAMILIES = [
         "list the transporter wise vehicle utilization for {mon}",
         "vehicle utilisation per transporter in {mon}",
     ], "EXEC ANDashBoardVehicleUtilization @startDate = '{m1}', @endDate = '{m2}', @expandTransporter = 1"),
-    (2, [
+    (3, [
         "List vehicle utilization for LR no {id}",
         "vehicle utilization for LR number {id}",
+        "vehicle utilization of the LR {id}",
+        "LR no {id} vehicle utilization",
+        "what is the vehicle utilization for LR number {id}",
+        "check vehicle utilization for the LR no {id}",
         "utilization for LR {id}",
         "show vehicle utilisation of LR no {id}",
     ], "EXEC ANDashBoardVehicleUtilization @transporterlrno='{id}'"),
