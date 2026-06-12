@@ -170,6 +170,47 @@ FAMILIES = [
         "total OBD count for {smu} please",
     ], "SELECT COUNT(*)\nFROM AN_LOGISTICS_TRACKER\nWHERE SMU = '{smu}'"),
 
+    # --- MPY sales count within a month (composite: jargon + date range) ---
+    (3, [
+        "How many sales were made for MPY in {mon}",
+        "What is the number of sales for MPY in {mon}",
+        "MPY sales count for {mon}",
+        "count the MPY sales during {mon}",
+        "total MPY sales in {mon}",
+        "how many MPY sales happened in {mon}",
+        "number of sales for MPY during {mon}",
+    ], "SELECT COUNT(*)\nFROM AN_LOGISTICS_TRACKER\nWHERE SMU IN( 'Protective Coating', 'Marine')\nAND NatureOfTransaction = 'Sales'\nAND InvoiceDate BETWEEN '{m1}' AND '{m2}'"),
+
+    # --- single-date threshold queries (the "after DATE" gap) ---------------
+    (3, [
+        "List all OBDs dispatched after {d1}",
+        "OBDs dispatched after {d1}",
+        "which OBDs were dispatched after {d1}",
+        "show OBDs with dispatch date after {d1}",
+        "give me every OBD dispatched since {d1}",
+        "OBDs that got dispatched after {d1}",
+        "list the OBDs dispatched later than {d1}",
+    ], "SELECT PickListId\nFROM AN_LOGISTICS_TRACKER\nWHERE MtrlMvdFromFctryDate >= '{d1}'"),
+    (3, [
+        "List all OBDs invoiced after {d1}",
+        "OBDs invoiced after {d1}",
+        "which OBDs were invoiced after {d1}",
+        "show OBDs with invoice date after {d1}",
+        "OBDs billed after {d1}",
+        "give me every OBD invoiced since {d1}",
+        "list the OBDs invoiced later than {d1}",
+    ], "SELECT PickListId\nFROM AN_LOGISTICS_TRACKER\nWHERE InvoiceDate >= '{d1}'"),
+
+    # --- distinct SSM per SMU (SSM had no business family of its own) -------
+    (3, [
+        "Who are the SSM for {smu}",
+        "List the SSMs for the {smu} business unit",
+        "which SSMs handle {smu}",
+        "SSM list for {smu}",
+        "show me all SSM working on {smu}",
+        "who are the senior sales managers of {smu}",
+    ], "SELECT DISTINCT SSM\nFROM AN_CUSTOMER_VS_ASM_RSM\nWHERE SMU = '{smu}'"),
+
     # --- distinct RSM per SMU ---------------------------------------------
     (5, [
         "Who are the RSM for {smu}",
