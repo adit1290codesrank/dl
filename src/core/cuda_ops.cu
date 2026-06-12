@@ -1976,3 +1976,37 @@ void mask_generator_logits_cuda(float* logits, int batch_seq, int vocab_size, in
     cudaDeviceSynchronize();
 }
 
+
+// ============================================================================
+// Deep-fusion additions (Phase B port of scripts/schema_fusion_pt.py)
+// ============================================================================
+
+// CE-on-probability gradient with CALLER-CHOSEN label smoothing. The original
+// ce_prob_grad_cuda hardcodes eps=0.1; the PyTorch reference uses none, so the
+// parity-exact port needs eps=0.
+void ce_prob_grad_eps_cuda(const float* P_final, const float* targets_idx, float* dP, int batch_seq, int V, int valid_tokens, float eps)
+{
+    int total = batch_seq * V; int th = 256; int bl = (total + th - 1) / th;
+    ce_prob_grad_kernel<<<bl, th>>>(P_final, targets_idx, dP, batch_seq, V, valid_tokens, eps);
+}
+
+// TRUE gate gradient: dL/dp_gen = sum_j dP_final[j] * (P_vocab[j] - P_mem[j]).
+// With eps=0 CE, dP_final is nonzero only at the target column, so the sum
+// collapses to the target entry. Replaces the old heuristic kernel that pushed
+// p_gen toward 1.0 whenever target < 50000.
+__global__ void blend_backward_pgen_exact_kernel(const float* dP_final, const float* P_vocab, const float* P_mem, const float* targets_idx, float* dp_gen, int batch_seq, int V)
+{
+    int bt = blockIdx.x * blockDim.x + threadIdx.x;
+    if (bt < batch_seq) {
+        int target = (int)targets_idx[bt];
+        if (target < 0) { dp_gen[bt] = 0.0f; return; }
+        int i = bt * V + target;
+        dp_gen[bt] = dP_final[i] * (P_vocab[i] - P_mem[i]);
+    }
+}
+void blend_backward_pgen_exact_cuda(const float* dP_final, const float* P_vocab, const float* P_mem, const float* targets_idx, float* dp_gen, int batch_seq, int V)
+{
+    int th = 256; int bl = (batch_seq + th - 1) / th;
+    blend_backward_pgen_exact_kernel<<<bl, th>>>(dP_final, P_vocab, P_mem, targets_idx, dp_gen, batch_seq, V);
+    cudaDeviceSynchronize();
+}

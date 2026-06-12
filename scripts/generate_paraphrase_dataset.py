@@ -472,21 +472,25 @@ FAMILIES = [
         "top destinations by picking-to-invoice time for {plant}, OBDs after {mon}",
         "slowest destinations for picking to invoice at plant {plant} since {mon}",
     ], "SELECT ISNULL(ShipToDestinationOverride, ShipToDestination) Destination, \nAVG(dbo.HoursDifferenceF(PckLstFwdToWHDate,PckLstFwdToWHTime,PickListRetForInvDate,PickListRetForInvTime)) PickingToInvoice\nFROM AN_LOGISTICS_TRACKER\nWHERE PendingStatus NOT IN ('Cancelled', 'Pending Picking')\nAND ProdOrder = 0\nAND FromPlant = '{plant}'\nAND PickListEmailDate >= '{m1}'\nGROUP BY ISNULL(ShipToDestinationOverride, ShipToDestination)\nORDER BY PickingToInvoice DESC"),
-    (3, [
+    (5, [
         "List top {n} OBDs with most time taken for Invoicing to Dispatch for plant {plant} for OBD received after {mon}",
         "top {n} OBDs slowest from invoicing to dispatch at plant {plant} since {mon}",
         "which {n} OBDs took longest for Invoice to Dispatch for plant {plant} after {mon}",
         "top {n} OBDs by invoicing to dispatch delay for plant {plant} after {mon}",
         "invoicing to dispatch report, top {n} OBDs, plant {plant}, after {mon}",
+        "invoice to dispatch delays, top {n} OBDs at plant {plant} since {mon}",
+        "show the invoicing to dispatch report for plant {plant}, top {n}, after {mon}",
         "{n} worst OBDs on invoicing-to-dispatch time for {plant}, received after {mon}",
         "slowest {n} OBDs invoice to dispatch, plant {plant}, after {mon}",
     ], "SELECT TOP {n} PickListId OBDNo, ShipCustomerName, SiteId Warehouse, \nISNULL(ShipToDestinationOverride, ShipToDestination) Destination, \nPickListEmailDate, InvoiceDate, InvoiceTime,\nISNULL(MtrlMvdFromFctryDateOverride,MtrlMvdFromFctryDate) DispatchDate, \nISNULL(MtrlMvdFromFctryTimeOverride,MtrlMvdFromFctrytime) DispatchTime,\ndbo.HoursDifferenceF(InvoiceDate,InvoiceTime,ISNULL(MtrlMvdFromFctryDateOverride,MtrlMvdFromFctryDate),\nISNULL(MtrlMvdFromFctryTimeOverride,MtrlMvdFromFctrytime)) InvoiceToDispatchInMinutes\nFROM AN_LOGISTICS_TRACKER\nWHERE PendingStatus NOT IN ('Cancelled', 'Pending Picking')\nAND ProdOrder = 0\nAND FromPlant = '{plant}'\nAND PickListEmailDate >= '{m1}'\nORDER BY InvoiceToDispatchInMinutes DESC"),
-    (3, [
+    (5, [
         "List top {n} OBDs with most time taken for Picking to Dispatch for plant {plant} for OBD received after {mon}",
         "top {n} OBDs slowest from picking to dispatch at plant {plant} since {mon}",
         "which {n} OBDs took longest for Picking to Dispatch for plant {plant} after {mon}",
         "top {n} OBDs by picking to dispatch delay for plant {plant} after {mon}",
         "picking to dispatch report, top {n} OBDs, plant {plant}, after {mon}",
+        "picking to dispatch delays, top {n} OBDs at plant {plant} since {mon}",
+        "show the picking to dispatch report for plant {plant}, top {n}, after {mon}",
         "report the {n} slowest picking to dispatch OBDs for plant {plant} since {mon}",
         "{n} worst OBDs on picking-to-dispatch time for {plant}, received after {mon}",
         "slowest {n} OBDs picking to dispatch, plant {plant}, after {mon}",
