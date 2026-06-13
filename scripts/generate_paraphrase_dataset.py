@@ -289,6 +289,21 @@ FAMILIES = [
         "give top {n} customers by VolumeInvoiced during {mon}, no stock transfers",
     ], "SELECT TOP {n} ShipCustomerName\nFROM AN_LOGISTICS_TRACKER\nWHERE InvoiceDate BETWEEN '{m1}' AND '{m2}'\nAND NatureOfTransaction != 'Stock Transfer'\nGROUP BY ShipCustomerName\nORDER BY SUM(VolumeInvoiced) DESC"),
 
+    # --- largest SMU by total volume invoiced (TOP 1 + aggregate ranking) ------
+    # Seed #1 in all_samples.json; this query SHAPE (SELECT TOP 1 col, SUM(x)
+    # ... GROUP BY col ORDER BY SUM(x) DESC) had no training family, so the
+    # model couldn't generate it.
+    (4, [
+        "What is the largest SMU based on VolumeInvoiced?",
+        "which SMU has the highest volume invoiced",
+        "largest business unit by volume invoiced",
+        "top SMU by total volume invoiced",
+        "which business unit invoiced the most volume",
+        "the biggest SMU on volume invoiced",
+        "highest volume invoiced SMU",
+        "what SMU has the most volume invoiced",
+    ], "SELECT TOP 1 SMU, SUM(VolumeInvoiced) TotalVolumeInvoice\nFROM AN_LOGISTICS_TRACKER\nGROUP BY SMU\nORDER BY SUM(VolumeInvoiced) DESC"),
+
     # --- business units from warehouse -----------------------------------------
     (4, [
         "What are the different business units from {wh} Warehouse?",
@@ -329,7 +344,7 @@ FAMILIES = [
         "show vehicle utilization for {d1} - {d2}",
         "How was the vehicle utilization between {d1} and {d2}",
         "overall vehicle utilisation for the window {d1} to {d2}",
-    ], "EXEC ANDashBoardVehicleUtilization @startDate = '{d1}', @endDate = '{d2}'"),
+    ], "EXEC ANDashBoardVehicleUtilization '_CB_', @startDate = '{d1}', @endDate = '{d2}'"),
 
     # --- vehicle utilization (month, by type/transporter) ------------------------
     (3, [
@@ -338,14 +353,14 @@ FAMILIES = [
         "Show me the vehicle utilization by vehicle type for {mon}",
         "break vehicle utilization down by vehicle type for {mon}",
         "vehicle utilisation per vehicle type in {mon}",
-    ], "EXEC ANDashBoardVehicleUtilization @startDate = '{m1}', @endDate = '{m2}', @expandVehicleType = 1"),
+    ], "EXEC ANDashBoardVehicleUtilization '_CB_', @startDate = '{m1}', @endDate = '{m2}', @expandVehicleType = 1"),
     (3, [
         "What is the vehicle utilization by transporter in {mon}?",
         "vehicle utilization by transporter for {mon}",
         "Show me the vehicle utilization for {mon}",
         "list the transporter wise vehicle utilization for {mon}",
         "vehicle utilisation per transporter in {mon}",
-    ], "EXEC ANDashBoardVehicleUtilization @startDate = '{m1}', @endDate = '{m2}', @expandTransporter = 1"),
+    ], "EXEC ANDashBoardVehicleUtilization '_CB_', @startDate = '{m1}', @endDate = '{m2}', @expandTransporter = 1"),
     (3, [
         "List vehicle utilization for LR no {id}",
         "vehicle utilization for LR number {id}",
@@ -355,7 +370,30 @@ FAMILIES = [
         "check vehicle utilization for the LR no {id}",
         "utilization for LR {id}",
         "show vehicle utilisation of LR no {id}",
-    ], "EXEC ANDashBoardVehicleUtilization @transporterlrno='{id}'"),
+    ], "EXEC ANDashBoardVehicleUtilization '_CB_', @transporterlrno='{id}'"),
+
+    # --- vehicle utilization for a SPECIFIC transporter (seed #10 param combo:
+    #     @transporter='{id}', which had no training family) ---
+    (3, [
+        "Vehicle Utilization for the period between {d1} to {d2} for transporter {id}",
+        "vehicle utilization from {d1} to {d2} for transporter {id}",
+        "utilization between {d1} and {d2} for transporter {id}",
+        "show vehicle utilization for transporter {id} from {d1} to {d2}",
+        "vehicle utilisation for transporter {id}, period {d1} to {d2}",
+    ], "EXEC ANDashBoardVehicleUtilization '_CB_', @startDate = '{d1}', @endDate = '{d2}', @transporter = '{id}'"),
+    (3, [
+        "vehicle utilization for {mon} for the transporter {id}",
+        "vehicle utilization for transporter {id} in {mon}",
+        "{mon} vehicle utilization for transporter {id}",
+        "show utilization of transporter {id} for {mon}",
+        "transporter {id} vehicle utilisation in {mon}",
+    ], "EXEC ANDashBoardVehicleUtilization '_CB_', @startDate = '{m1}', @endDate = '{m2}', @transporter = '{id}'"),
+    (2, [
+        "List vehicle utilization by transporter and vehicle type in {mon}",
+        "vehicle utilization by transporter and vehicle type for {mon}",
+        "{mon} vehicle utilization broken down by transporter and vehicle type",
+        "show utilization per transporter and per vehicle type for {mon}",
+    ], "EXEC ANDashBoardVehicleUtilization '_CB_', @startDate = '{m1}', @endDate = '{m2}', @expandTransporter = 1, @expandVehicleType = 1"),
 
     # --- transporter dashboard ----------------------------------------------
     (3, [

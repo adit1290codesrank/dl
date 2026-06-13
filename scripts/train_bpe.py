@@ -65,7 +65,14 @@ def train_tokenizer():
             
     with open("data/bpe_merges.txt", "w", encoding="utf-8") as f:
         for merge in merges:
-            f.write(f"{merge}\n")
+            # HF tokenizers >=0.20 stores merges as ["a","b"] pairs, not "a b"
+            # strings. Writing f"{merge}" would emit Python list-repr ("['a',
+            # 'b']"), which the C++ BPETokenizer parses into garbage pairs ->
+            # zero merges -> char-level tokenization at inference. Join explicitly.
+            if isinstance(merge, (list, tuple)):
+                f.write(f"{merge[0]} {merge[1]}\n")
+            else:
+                f.write(f"{merge}\n")
 
     os.remove(corpus_path)
     print("BPE Training Complete!")

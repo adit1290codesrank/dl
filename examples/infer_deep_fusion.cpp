@@ -129,6 +129,14 @@ static std::string relex(std::string sql, const std::vector<std::string>& slot_v
     return sql;
 }
 
+// The C++ BPETokenizer.decode appends a space after every token, so a quoted
+// value comes out as "' ABC123 '". Strip whitespace just INSIDE each quote
+// pair so it matches in SQL, while preserving internal spaces of multi-word
+// literals like 'SAFE EXPRESS' ([^']*? matches a single quoted run).
+static std::string tidy_sql(const std::string& sql) {
+    return std::regex_replace(sql, std::regex(R"('\s*([^']*?)\s*')"), "'$1'");
+}
+
 // ---- fusion.bin memory loader (header + global memory only) ---------------
 static void load_memory(const std::string& path, int& seq_len, int& V, int& V_bpe,
                         int& M, int& mt, std::vector<float>& emit, std::vector<float>& toks, std::vector<float>& types)
@@ -240,7 +248,7 @@ int main(int argc, char** argv)
             }
             flush();
 
-            std::cout << "SQL  > " << relex(sql, slot_values) << std::endl;
+            std::cout << "SQL  > " << tidy_sql(relex(sql, slot_values)) << std::endl;
         }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
