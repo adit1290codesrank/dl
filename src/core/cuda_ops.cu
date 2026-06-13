@@ -2031,3 +2031,34 @@ float nll_target_loss_cuda(const float* P, const float* targets_idx, float* loss
     float h = 0.0f; cudaMemcpy(&h, loss, sizeof(float), cudaMemcpyDeviceToHost);
     return h;
 }
+
+// Copy accuracy: of the validation target positions that are ATOMIC ids
+// (tgt >= V_bpe -- i.e. schema/jargon emitted via the pointer head), how many
+// did the argmax get right. Free during the teacher-forced val pass (pred is
+// already on device). Only copy-position threads do the V-length argmax, so
+// the cost is a small fraction of full accuracy.
+__global__ void copy_accuracy_kernel(const float* pred, const float* targets, int V_bpe,
+                                      int* correct, int* total, int batch_seq, int V)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= batch_seq) return;
+    int tgt = (int)targets[i];
+    if (tgt < V_bpe || tgt >= V) return; // skips -100 and all non-copy tokens
+    int base = i * V, best = 0; float bp = pred[base];
+    for (int v = 1; v < V; ++v) { float p = pred[base + v]; if (p > bp) { bp = p; best = v; } }
+    atomicAdd(total, 1);
+    if (best == tgt) atomicAdd(correct, 1);
+}
+
+void calculate_copy_accuracy_cuda(const float* pred, const float* targets, int V_bpe,
+                                  int* correct_out, int* total_out, int batch_seq, int V)
+{
+    // Persistent counters (reused across calls) -- no per-call malloc/free.
+    static int* d_c = nullptr; static int* d_t = nullptr;
+    if (!d_c) { cudaMalloc(&d_c, sizeof(int)); cudaMalloc(&d_t, sizeof(int)); }
+    cudaMemset(d_c, 0, sizeof(int)); cudaMemset(d_t, 0, sizeof(int));
+    int th = 256, bl = (batch_seq + th - 1) / th;
+    copy_accuracy_kernel<<<bl, th>>>(pred, targets, V_bpe, d_c, d_t, batch_seq, V);
+    cudaMemcpy(correct_out, d_c, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(total_out, d_t, sizeof(int), cudaMemcpyDeviceToHost);
+}

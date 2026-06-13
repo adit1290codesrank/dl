@@ -35,6 +35,7 @@ void mean_pool_groups_backward_cuda(const float* dout, const float* tokens, floa
 void embedding_backward_cuda(const float* X, const float* dY, float* dW, int tokens, int dimension, int size);
 void calculate_accuracy_cuda(const float* pred, const float* targets_idx, int* top1_out, int* top5_out, int* total_out, int seq_len, int vocab_size, int total_tokens);
 float nll_target_loss_cuda(const float* P, const float* targets_idx, float* loss, int batch_seq, int V, int valid_tokens);
+void calculate_copy_accuracy_cuda(const float* pred, const float* targets, int V_bpe, int* correct_out, int* total_out, int batch_seq, int V);
 
 // DeepFusionNet: C++ port of scripts/schema_fusion_pt.py::DeepFusionNet.
 //
@@ -344,7 +345,7 @@ class DeepFusionNet
             std::mt19937 rng(42);
 
             std::ofstream log_file("loss_log_fusion_cpp.csv");
-            log_file << "epoch,train_loss,val_loss,top1,top5,lr,epoch_secs\n";
+            log_file << "epoch,train_loss,val_loss,top1,top5,copy_acc,lr,epoch_secs\n";
 
             float lr_min = peak_lr * 0.01f;
             float best_top5 = -1.0f;
@@ -408,6 +409,7 @@ class DeepFusionNet
                 int nb_val = n_val / bs; if (nb_val == 0) nb_val = 1;
                 float val_loss = 0.0f;
                 long long c1 = 0, c5 = 0, ctot = 0;
+                long long cp_c = 0, cp_t = 0;  // copy-position correct / total
                 for (int b = 0; b < nb_val; ++b)
                 {
                     int actual_bs = std::min(bs, n_val - b * bs);
@@ -433,10 +435,15 @@ class DeepFusionNet
                     int t1 = 0, t5 = 0, tt = 0;
                     calculate_accuracy_cuda(pred.data(), tY.data(), &t1, &t5, &tt, seq_len, V, actual_bs * seq_len);
                     c1 += t1; c5 += t5; ctot += tt;
+
+                    int cc = 0, ctt = 0;
+                    calculate_copy_accuracy_cuda(pred.data(), tY.data(), V_bpe, &cc, &ctt, actual_bs * seq_len, V);
+                    cp_c += cc; cp_t += ctt;
                 }
                 val_loss /= nb_val;
                 float top1 = ctot ? 100.0f * c1 / ctot : 0.0f;
                 float top5 = ctot ? 100.0f * c5 / ctot : 0.0f;
+                float copy_acc = cp_t ? 100.0f * cp_c / cp_t : 0.0f;
 
                 auto t_now = std::chrono::high_resolution_clock::now();
                 float ep_secs = std::chrono::duration<float>(t_now - ep_t0).count();
@@ -447,14 +454,15 @@ class DeepFusionNet
                           << " | Val Loss: " << val_loss
                           << " | Top1: " << top1 << "%"
                           << " | Top5: " << top5 << "%"
+                          << " | CopyAcc: " << copy_acc << "%"
                           << " | LR: " << current_lr
                           << " | epoch=" << ep_secs << "s"
                           << " | elapsed=" << (int)total_secs << "s"
                           << " | ETA=" << eta / 60 << "m" << eta % 60 << "s"
                           << std::endl;
                 log_file << e << "," << train_loss << "," << val_loss << ","
-                         << top1 << "," << top5 << "," << current_lr << ","
-                         << ep_secs << "\n";
+                         << top1 << "," << top5 << "," << copy_acc << ","
+                         << current_lr << "," << ep_secs << "\n";
                 log_file.flush();
 
                 if (top5 > best_top5) {
