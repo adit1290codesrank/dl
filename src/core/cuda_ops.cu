@@ -1180,36 +1180,41 @@ void clamp_tensor_cuda(float* data, float min_val, float max_val, int size) {
     int threads = 256;
     int blocks = (size + threads - 1) / threads;
     clamp_kernel<<<blocks, threads>>>(data, min_val, max_val, size);
-    cudaDeviceSynchronize();
+}
+
+// Reads the precomputed sum-of-squares (device scalar) and scales grad in
+// place by min(1, max_norm/norm); non-finite norm -> 0. Each thread recomputes
+// the (cheap) sqrt so no host round-trip or broadcast is needed.
+__global__ void apply_grad_clip_kernel(float* grad, const float* d_sum_sq, float max_norm, int size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < size) {
+        float norm = sqrtf(d_sum_sq[0]);
+        float scale = 1.0f;
+        if (!isfinite(norm)) scale = 0.0f;
+        else if (norm > max_norm) scale = max_norm / norm;
+        grad[idx] *= scale;
+    }
 }
 
 void clip_grad_norm_tensor_cuda(Tensor& grad, float max_norm) {
     int size = grad.total_elements();
     if (size == 0) return;
 
-    float* d_sum_sq;
-    cudaMalloc(&d_sum_sq, sizeof(float));
-    cudaMemset(d_sum_sq, 0, sizeof(float));
+    // Persistent device scalar reused across all calls. The previous version
+    // did cudaMalloc + cudaDeviceSynchronize + D2H cudaMemcpy + cudaFree on
+    // EVERY call -- and grad-clip fires ~170x per training step. cudaMalloc/
+    // cudaFree are device-synchronizing, so that was ~170 full pipeline drains
+    // per batch (the dominant training cost). Everything stays on the default
+    // stream, so memset -> sum_squares -> apply_clip remain correctly ordered
+    // without any host synchronization.
+    static float* d_sum_sq = nullptr;
+    if (!d_sum_sq) cudaMalloc(&d_sum_sq, sizeof(float));
+    cudaMemsetAsync(d_sum_sq, 0, sizeof(float));
 
     int threads = 256;
     int blocks = (size + threads - 1) / threads;
     sum_squares_kernel<<<blocks, threads>>>(grad.data(), d_sum_sq, size);
-    cudaDeviceSynchronize();
-
-    float h_sum_sq;
-    cudaMemcpy(&h_sum_sq, d_sum_sq, sizeof(float), cudaMemcpyDeviceToHost);
-    cudaFree(d_sum_sq);
-
-    float norm = sqrtf(h_sum_sq);
-    
-    // Non-finite guard: if norm is NaN/Inf, scale to 0 to skip update
-    if (!std::isfinite(norm)) {
-        scale_tensor_kernel<<<blocks, threads>>>(grad.data(), 0.0f, size);
-    } else if (norm > max_norm) {
-        float scale = max_norm / norm;
-        scale_tensor_kernel<<<blocks, threads>>>(grad.data(), scale, size);
-    }
-    cudaDeviceSynchronize();
+    apply_grad_clip_kernel<<<blocks, threads>>>(grad.data(), d_sum_sq, max_norm, size);
 }
 
 void calculate_accuracy_cuda(const float* pred, const float* targets_idx, int* top1_out, int* top5_out, int* total_out, int seq_len, int vocab_size, int total_tokens) {
@@ -1686,7 +1691,6 @@ void cross_entropy_cuda(const float* pred, const float* targets_idx, float* dy, 
     int threads = 256;
     int blocks = (total_elements + threads - 1) / threads;
     cross_entropy_kernel<<<blocks, threads>>>(pred, targets_idx, dy, batch_seq, vocab_size, valid_tokens, 0.1f);
-    cudaDeviceSynchronize();
 }
 
 float mse_loss_cuda(const Tensor& y_,const Tensor& y,Tensor& loss)
@@ -1752,7 +1756,6 @@ void cross_entropy_dense_cuda(const Tensor& y_, const Tensor& y, Tensor& dy)
     int threads = BLOCK_SIZE;
     int blocks = (size + threads - 1) / threads;
     cross_entropy_dense_kernel<<<blocks, threads>>>(y_.data(), y.data(), dy.data(), size, n, k, epsilon);
-    cudaDeviceSynchronize();
 }
 
 float cross_entropy_loss_dense_cuda(const Tensor& y_, const Tensor& y, Tensor& loss)
@@ -1860,7 +1863,6 @@ extern "C" void average_heads_cuda(const float* attn, float* averaged, int N, in
     int total = N * T_q * T_k;
     int numBlocks = (total + BLOCK_SIZE - 1) / BLOCK_SIZE;
     average_heads_kernel<<<numBlocks, BLOCK_SIZE>>>(attn, averaged, N, H, T_q, T_k);
-    cudaDeviceSynchronize();
 }
 
 __global__ void broadcast_heads_kernel(const float* d_averaged, float* d_attn, int N, int H, int T_q, int T_k) {
@@ -1883,7 +1885,6 @@ extern "C" void broadcast_heads_cuda(const float* d_averaged, float* d_attn, int
     int total = N * H * T_q * T_k;
     int numBlocks = (total + BLOCK_SIZE - 1) / BLOCK_SIZE;
     broadcast_heads_kernel<<<numBlocks, BLOCK_SIZE>>>(d_averaged, d_attn, N, H, T_q, T_k);
-    cudaDeviceSynchronize();
 }
 
 __global__ void pointer_blend_forward_kernel(const float* p_vocab, const float* p_copy, const float* p_gen, const float* schema_ids, float* p_final, int N, int T_q, int vocab_size, int T_k) {
@@ -1914,7 +1915,6 @@ extern "C" void pointer_blend_forward_cuda(const float* p_vocab, const float* p_
     int total = N * T_q * vocab_size;
     int numBlocks = (total + BLOCK_SIZE - 1) / BLOCK_SIZE;
     pointer_blend_forward_kernel<<<numBlocks, BLOCK_SIZE>>>(p_vocab, p_copy, p_gen, schema_ids, p_final, N, T_q, vocab_size, T_k);
-    cudaDeviceSynchronize();
 }
 
 __global__ void pointer_blend_backward_kernel(const float* d_final, const float* p_vocab, const float* p_copy, const float* p_gen, const float* schema_ids, float* d_vocab, float* d_copy, float* d_pgen, int N, int T_q, int vocab_size, int T_k) {
@@ -1957,7 +1957,6 @@ extern "C" void pointer_blend_backward_cuda(const float* d_final, const float* p
     int total = N * T_q;
     int numBlocks = (total + BLOCK_SIZE - 1) / BLOCK_SIZE;
     pointer_blend_backward_kernel<<<numBlocks, BLOCK_SIZE>>>(d_final, p_vocab, p_copy, p_gen, schema_ids, d_vocab, d_copy, d_pgen, N, T_q, vocab_size, T_k);
-    cudaDeviceSynchronize();
 }
 
 __global__ void mask_generator_logits_kernel(float* logits, int batch_seq, int vocab_size, int bpe_vocab_size) {
@@ -1973,7 +1972,6 @@ void mask_generator_logits_cuda(float* logits, int batch_seq, int vocab_size, in
     int threads = 256;
     int blocks = (batch_seq + threads - 1) / threads;
     mask_generator_logits_kernel<<<blocks, threads>>>(logits, batch_seq, vocab_size, bpe_vocab_size);
-    cudaDeviceSynchronize();
 }
 
 
@@ -2008,5 +2006,28 @@ void blend_backward_pgen_exact_cuda(const float* dP_final, const float* P_vocab,
 {
     int th = 256; int bl = (batch_seq + th - 1) / th;
     blend_backward_pgen_exact_kernel<<<bl, th>>>(dP_final, P_vocab, P_mem, targets_idx, dp_gen, batch_seq, V);
+}
+
+// Monitoring-only NLL identical to PyTorch NLLLoss(log(P_target)): no label
+// smoothing, target term only. The general cross_entropy_loss_cuda bakes in
+// eps=0.1 AND sums -log over all V classes (each masked/zero entry adds
+// ~-log(1e-7)), inflating the logged number and making it incomparable to the
+// PyTorch reference. Gradient path is unaffected (uses ce_prob_grad_eps).
+__global__ void nll_target_loss_kernel(const float* P, const float* targets_idx, float* loss, int batch_seq, int V, int valid_tokens)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < batch_seq) {
+        int tgt = (int)targets_idx[i];
+        if (tgt < 0 || tgt >= V) return;
+        atomicAdd(loss, -logf(P[i * V + tgt] + 1e-9f) / (float)valid_tokens);
+    }
+}
+float nll_target_loss_cuda(const float* P, const float* targets_idx, float* loss, int batch_seq, int V, int valid_tokens)
+{
+    cudaMemset(loss, 0, sizeof(float));
+    int th = 256, bl = (batch_seq + th - 1) / th;
+    nll_target_loss_kernel<<<bl, th>>>(P, targets_idx, loss, batch_seq, V, valid_tokens);
     cudaDeviceSynchronize();
+    float h = 0.0f; cudaMemcpy(&h, loss, sizeof(float), cudaMemcpyDeviceToHost);
+    return h;
 }

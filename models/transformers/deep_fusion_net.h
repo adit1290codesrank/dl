@@ -34,6 +34,7 @@ void mean_pool_groups_cuda(const float* in, const float* tokens, float* out, int
 void mean_pool_groups_backward_cuda(const float* dout, const float* tokens, float* din, int num_groups, int group_size, int dim, float pad_id);
 void embedding_backward_cuda(const float* X, const float* dY, float* dW, int tokens, int dimension, int size);
 void calculate_accuracy_cuda(const float* pred, const float* targets_idx, int* top1_out, int* top5_out, int* total_out, int seq_len, int vocab_size, int total_tokens);
+float nll_target_loss_cuda(const float* P, const float* targets_idx, float* loss, int batch_seq, int V, int valid_tokens);
 
 // DeepFusionNet: C++ port of scripts/schema_fusion_pt.py::DeepFusionNet.
 //
@@ -80,6 +81,10 @@ class DeepFusionNet
         Tensor cached_k;          // [M, dim]
         int cached_batch = 0, cached_seq = 0;
 
+        // Inference: the memory bank is static under frozen weights, so encode
+        // it once instead of re-pooling 859x8 sub-tokens on every decoded token.
+        bool memory_frozen = false;
+
         void init_embedding_(Embedding& e, int rows, unsigned seed)
         {
             // GPT-style std=0.02 init, matching the PyTorch reference. The
@@ -121,6 +126,14 @@ class DeepFusionNet
             mem_emit_ids = emit_ids;   // [M, 1]
         }
 
+        // Inference only: encode the memory bank once and reuse it for every
+        // decoded token. Call after load() + set_mode(false).
+        void freeze_memory()
+        {
+            cached_mem_pooled = encode_memory();
+            memory_frozen = true;
+        }
+
         // Encode the memory bank: pooled sub-token embeddings + type embedding.
         Tensor encode_memory()
         {
@@ -144,8 +157,10 @@ class DeepFusionNet
             cached_batch = batch; cached_seq = seq;
 
             // ---- memory bank (encoded BEFORE the sequence so token_emb's
-            // lookup cache ends holding X for the sequence-path backward) ----
-            cached_mem_pooled = encode_memory();
+            // lookup cache ends holding X for the sequence-path backward).
+            // Inference reuses the cached encoding (frozen weights). ----
+            if (!memory_frozen)
+                cached_mem_pooled = encode_memory();
 
             // ---- input embedding + learned positions ----
             Tensor x = token_emb.forward(X);                   // [B, T, dim]
@@ -329,7 +344,7 @@ class DeepFusionNet
             std::mt19937 rng(42);
 
             std::ofstream log_file("loss_log_fusion_cpp.csv");
-            log_file << "epoch,train_loss,val_loss,top1,top5,lr\n";
+            log_file << "epoch,train_loss,val_loss,top1,top5,lr,epoch_secs\n";
 
             float lr_min = peak_lr * 0.01f;
             float best_top5 = -1.0f;
@@ -337,6 +352,13 @@ class DeepFusionNet
 
             for (int e = 1; e <= epochs; ++e)
             {
+                // Per-epoch wall clock. Host-side chrono only -> zero GPU
+                // overhead and no added syncs. The reading is accurate because
+                // the epoch boundary already has a natural sync point (the
+                // validation loss D2H copy below drains the queue), so by the
+                // time we sample the clock the epoch's GPU work has completed.
+                auto ep_t0 = std::chrono::high_resolution_clock::now();
+
                 set_mode(true);
                 std::shuffle(idx.begin(), idx.end(), rng);
 
@@ -372,7 +394,9 @@ class DeepFusionNet
                     backward_with_targets(tY, valid_tokens, current_lr);
 
                     pred.shape = {actual_bs * seq_len, V};
-                    tot_loss += Loss::compute_loss(pred, tY, loss_val, LossType::CROSS_ENTROPY, valid_tokens);
+                    // True NLL (eps=0, target-only) so the log is directly
+                    // comparable to the PyTorch reference loss_log_fusion.csv.
+                    tot_loss += nll_target_loss_cuda(pred.data(), tY.data(), loss_val.data(), actual_bs * seq_len, V, valid_tokens);
 
                     if (b % 5 == 0 || b == nb - 1)
                         std::cout << "\rEpoch " << e << "/" << epochs << "  batch " << b + 1 << "/" << nb << std::flush;
@@ -404,7 +428,7 @@ class DeepFusionNet
                     Tensor tY = Tensor::upload(bY, {actual_bs * seq_len, 1});
                     Tensor pred = forward(tX);
                     pred.shape = {actual_bs * seq_len, V};
-                    val_loss += Loss::compute_loss(pred, tY, loss_val, LossType::CROSS_ENTROPY, valid_tokens);
+                    val_loss += nll_target_loss_cuda(pred.data(), tY.data(), loss_val.data(), actual_bs * seq_len, V, valid_tokens);
 
                     int t1 = 0, t5 = 0, tt = 0;
                     calculate_accuracy_cuda(pred.data(), tY.data(), &t1, &t5, &tt, seq_len, V, actual_bs * seq_len);
@@ -415,16 +439,22 @@ class DeepFusionNet
                 float top5 = ctot ? 100.0f * c5 / ctot : 0.0f;
 
                 auto t_now = std::chrono::high_resolution_clock::now();
-                float secs = std::chrono::duration<float>(t_now - t_start).count();
+                float ep_secs = std::chrono::duration<float>(t_now - ep_t0).count();
+                float total_secs = std::chrono::duration<float>(t_now - t_start).count();
+                int eta = (int)(ep_secs * (epochs - e)); // ETA from this epoch's pace
                 std::cout << "\rEpoch " << e << "/" << epochs
                           << " | Loss: " << train_loss
                           << " | Val Loss: " << val_loss
                           << " | Top1: " << top1 << "%"
                           << " | Top5: " << top5 << "%"
                           << " | LR: " << current_lr
-                          << " | t=" << (int)secs << "s" << std::endl;
+                          << " | epoch=" << ep_secs << "s"
+                          << " | elapsed=" << (int)total_secs << "s"
+                          << " | ETA=" << eta / 60 << "m" << eta % 60 << "s"
+                          << std::endl;
                 log_file << e << "," << train_loss << "," << val_loss << ","
-                         << top1 << "," << top5 << "," << current_lr << "\n";
+                         << top1 << "," << top5 << "," << current_lr << ","
+                         << ep_secs << "\n";
                 log_file.flush();
 
                 if (top5 > best_top5) {

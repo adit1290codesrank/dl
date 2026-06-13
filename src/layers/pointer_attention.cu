@@ -332,9 +332,9 @@ Tensor PointerAttention::backward_ext(const Tensor& grad, float lr, const Tensor
 
     Tensor dK = Tensor::zeros(N*T_k, D);
     Tensor dSchema_gate_contribution = Tensor::zeros(N*T_k, D);
-    cudaMemset(dw_gate.data(), 0, dw_gate.total_elements() * sizeof(float));
-    cudaMemset(dw_proj.data(), 0, dw_proj.total_elements() * sizeof(float));
-    
+    // (dw_gate/dw_proj are written via memcpy inside the K_frozen branch below
+    // and unused otherwise -- no need to pre-zero the 1M-element dw_proj here.)
+
     if (K_frozen.total_elements() > 0) {
         Tensor dGate = Tensor::zeros(N*T_k, heads);
         Tensor dK_frozen_proj = Tensor::zeros(T_k, D);
@@ -387,15 +387,21 @@ Tensor PointerAttention::backward_ext(const Tensor& grad, float lr, const Tensor
     clip_grad_norm_tensor_cuda(dwK, 1.0f);
     clip_grad_norm_tensor_cuda(dwV, 1.0f);
     clip_grad_norm_tensor_cuda(dwO, 1.0f);
-    clip_grad_norm_tensor_cuda(dw_gate, 1.0f);
-    clip_grad_norm_tensor_cuda(dw_proj, 1.0f);
 
     adam_cuda(wQ, dwQ, mwq, vwq, lr, t, wsize);
     adam_cuda(wK, dwK, mwk, vwk, lr, t, wsize);
     adam_cuda(wV, dwV, mwv, vwv, lr, t, wsize);
     adam_cuda(wO, dwO, mwo, vwo, lr, t, wsize);
-    adam_cuda(w_gate, dw_gate, mw_gate, vw_gate, lr, t, dimension * heads);
-    adam_cuda(w_proj, dw_proj, mw_proj, vw_proj, lr, t, 2048 * dimension);
+
+    // w_gate / w_proj only exist for the K_frozen (lexical-key) path. When it
+    // is unused (DeepFusionNet never sets K_frozen) their grads are zero, so
+    // skip the 1.05M-param Adam update + clips entirely -- pure waste per block.
+    if (K_frozen.total_elements() > 0) {
+        clip_grad_norm_tensor_cuda(dw_gate, 1.0f);
+        clip_grad_norm_tensor_cuda(dw_proj, 1.0f);
+        adam_cuda(w_gate, dw_gate, mw_gate, vw_gate, lr, t, dimension * heads);
+        adam_cuda(w_proj, dw_proj, mw_proj, vw_proj, lr, t, 2048 * dimension);
+    }
 
     // Store total schema gradient: dInput_k + dInput_v
     // dInput_k already includes dSchema_gate contribution from the gate backward
