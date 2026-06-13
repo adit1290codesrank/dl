@@ -23,16 +23,24 @@ import os
 BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 
 
-def build_system_prompt():
-    # --- schema ---
+def build_system_prompt(full=False):
+    # COMPACT prompt (default): table names + jargon only. The full 325-column
+    # enumeration made every sequence ~2.4k tokens -> OOM + ~5x slower training
+    # on a 16GB T4. A fine-tuned model learns the columns from the 10k examples
+    # (every column appears in many SQL outputs) and the guardrail validates
+    # them at inference, so the in-context column list isn't needed for a
+    # fine-tune. Pass full=True to restore the column lists (needs a bigger GPU).
     tables = json.load(open(os.path.join(BASE, "all_tables.json"), encoding="utf-8"))
     by_table = {}
     for it in tables:
         if it.get("INCLUDE_IN_MODEL") and it.get("COLUMN_NAME"):
             by_table.setdefault(it["TABLE_NAME"], []).append(it["COLUMN_NAME"])
-    schema_lines = [f"  {t} ({', '.join(cols)})" for t, cols in by_table.items()]
+    if full:
+        schema = "SCHEMA (tables and their columns):\n" + "\n".join(
+            f"  {t} ({', '.join(cols)})" for t, cols in by_table.items())
+    else:
+        schema = "TABLES: " + ", ".join(by_table.keys())
 
-    # --- jargon ---
     jargon = json.load(open(os.path.join(BASE, "jargon_fusion.json"), encoding="utf-8"))
     jline = [f"  {e['keys'][0]} = {e['expansion']}" for e in jargon]
 
@@ -40,7 +48,7 @@ def build_system_prompt():
         "You are a T-SQL generator for an enterprise logistics database. "
         "Translate the user's question into a single valid T-SQL query. "
         "Output ONLY the SQL, no explanation.\n\n"
-        "SCHEMA (tables and their columns):\n" + "\n".join(schema_lines) + "\n\n"
+        + schema + "\n\n"
         "BUSINESS JARGON (term -> SQL meaning; use these exact columns/fragments):\n"
         + "\n".join(jline)
     )
