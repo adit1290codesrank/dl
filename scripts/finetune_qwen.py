@@ -27,9 +27,9 @@ from peft import LoraConfig, prepare_model_for_kbit_training
 from trl import SFTTrainer, SFTConfig, DataCollatorForCompletionOnlyLM
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# 14B is the quality jump worth spending the budget on; fits 16GB in 4-bit.
-# If it OOMs, fall back to "Qwen/Qwen2.5-Coder-7B-Instruct" (one line).
-MODEL = "Qwen/Qwen2.5-Coder-14B-Instruct"
+# 7B: 14B OOM'd on a 16GB T4 (4-bit weights + fp32 norm-upcast ~12.4GB before
+# training even starts). 7B 4-bit is ~5GB, leaving ample room. Strong for SQL.
+MODEL = "Qwen/Qwen2.5-Coder-7B-Instruct"
 
 tok = AutoTokenizer.from_pretrained(MODEL)
 if tok.pad_token is None:
@@ -74,8 +74,8 @@ collator = DataCollatorForCompletionOnlyLM(
 cfg = SFTConfig(
     output_dir=os.path.join(BASE, "weights", "qwen_sql_lora"),
     num_train_epochs=2,                 # narrow domain -> 2-3 is plenty
-    per_device_train_batch_size=1,      # 14B: bs1 x accum16 = eff batch 16
-    gradient_accumulation_steps=16,
+    per_device_train_batch_size=2,      # 7B fits bs2 x accum8 = eff batch 16
+    gradient_accumulation_steps=8,
     learning_rate=2e-4,
     lr_scheduler_type="cosine",
     warmup_ratio=0.03,
