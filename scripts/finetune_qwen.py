@@ -74,8 +74,11 @@ collator = DataCollatorForCompletionOnlyLM(
 cfg = SFTConfig(
     output_dir=os.path.join(BASE, "weights", "qwen_sql_lora"),
     num_train_epochs=2,                 # narrow domain -> 2-3 is plenty
-    per_device_train_batch_size=2,      # 7B fits bs2 x accum8 = eff batch 16
-    gradient_accumulation_steps=8,
+    # bs1: Qwen's ~152k vocab makes the fp32 cross-entropy logits tensor huge at
+    # this seq length; bs2 OOM'd on a 16GB T4 at the loss step. bs1 x accum16
+    # keeps the same effective batch (16) while halving that tensor.
+    per_device_train_batch_size=1,
+    gradient_accumulation_steps=16,
     learning_rate=2e-4,
     lr_scheduler_type="cosine",
     warmup_ratio=0.03,
@@ -90,7 +93,7 @@ cfg = SFTConfig(
     # MUST exceed system(~2.2k) + question + SQL, else the answer (which comes
     # last) is truncated and the completion-only collator masks everything ->
     # zero training signal. 3072 leaves comfortable room.
-    max_seq_length=3072,
+    max_seq_length=2816,                # covers ~2.2k system + Q + SQL with margin
     dataset_text_field="text",          # lives in SFTConfig in current trl
     packing=False,
     report_to="none",
