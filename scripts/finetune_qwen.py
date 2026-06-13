@@ -27,7 +27,9 @@ from peft import LoraConfig, prepare_model_for_kbit_training
 from trl import SFTTrainer, SFTConfig, DataCollatorForCompletionOnlyLM
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MODEL = "Qwen/Qwen2.5-Coder-7B-Instruct"
+# 14B is the quality jump worth spending the budget on; fits 16GB in 4-bit.
+# If it OOMs, fall back to "Qwen/Qwen2.5-Coder-7B-Instruct" (one line).
+MODEL = "Qwen/Qwen2.5-Coder-14B-Instruct"
 
 tok = AutoTokenizer.from_pretrained(MODEL)
 if tok.pad_token is None:
@@ -46,7 +48,7 @@ model = prepare_model_for_kbit_training(model)
 model.config.use_cache = False
 
 lora = LoraConfig(
-    r=16, lora_alpha=32, lora_dropout=0.05, bias="none", task_type="CAUSAL_LM",
+    r=32, lora_alpha=64, lora_dropout=0.05, bias="none", task_type="CAUSAL_LM",
     target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
                     "gate_proj", "up_proj", "down_proj"],
 )
@@ -72,8 +74,8 @@ collator = DataCollatorForCompletionOnlyLM(
 cfg = SFTConfig(
     output_dir=os.path.join(BASE, "weights", "qwen_sql_lora"),
     num_train_epochs=2,                 # narrow domain -> 2-3 is plenty
-    per_device_train_batch_size=2,
-    gradient_accumulation_steps=8,      # effective batch 16
+    per_device_train_batch_size=1,      # 14B: bs1 x accum16 = eff batch 16
+    gradient_accumulation_steps=16,
     learning_rate=2e-4,
     lr_scheduler_type="cosine",
     warmup_ratio=0.03,
@@ -82,18 +84,27 @@ cfg = SFTConfig(
     logging_steps=10,
     save_strategy="epoch",
     eval_strategy="epoch",              # older trl: evaluation_strategy
-    max_seq_length=2048,                # system prompt ~2.2k tokens + Q + SQL
+    load_best_model_at_end=True,        # keep best eval_loss epoch -> budget-safe
+    metric_for_best_model="eval_loss",
+    save_total_limit=2,
+    # MUST exceed system(~2.2k) + question + SQL, else the answer (which comes
+    # last) is truncated and the completion-only collator masks everything ->
+    # zero training signal. 3072 leaves comfortable room.
+    max_seq_length=3072,
+    dataset_text_field="text",          # lives in SFTConfig in current trl
     packing=False,
     report_to="none",
 )
 
+# NOTE: in current trl, dataset_text_field / max_seq_length belong to SFTConfig
+# (above), NOT to SFTTrainer(...). Passing them to the trainer raises
+# "unexpected keyword argument".
 trainer = SFTTrainer(
     model=model,
     args=cfg,
     train_dataset=ds["train"],
     eval_dataset=ds["val"],
     peft_config=lora,
-    dataset_text_field="text",
     data_collator=collator,
 )
 
