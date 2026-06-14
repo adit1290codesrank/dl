@@ -27,23 +27,29 @@ from peft import LoraConfig, prepare_model_for_kbit_training
 from trl import SFTTrainer, SFTConfig, DataCollatorForCompletionOnlyLM
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# 7B: 14B OOM'd on a 16GB T4 (4-bit weights + fp32 norm-upcast ~12.4GB before
-# training even starts). 7B 4-bit is ~5GB, leaving ample room. Strong for SQL.
-MODEL = "Qwen/Qwen2.5-Coder-7B-Instruct"
+# 14B on an L4 (24GB): 14B 4-bit (~9GB) + activations + logits ~16GB, fits 24GB.
+# (14B OOM'd only on the 16GB T4.) The quality jump worth the bigger card.
+MODEL = "Qwen/Qwen2.5-Coder-14B-Instruct"
 
 tok = AutoTokenizer.from_pretrained(MODEL)
 if tok.pad_token is None:
     tok.pad_token = tok.eos_token
 
-# 4-bit NF4 quantization (QLoRA): base weights frozen in 4-bit, LoRA trains in bf16.
+# 4-bit NF4 QLoRA, bf16 compute. The L4 is Ada Lovelace -> it HAS bf16 tensor
+# cores (unlike the Turing T4), so bf16 is both fast and more numerically stable
+# than fp16 here. (On a T4 you'd use fp16 instead.)
 bnb = BitsAndBytesConfig(
     load_in_4bit=True,
     bnb_4bit_quant_type="nf4",
     bnb_4bit_compute_dtype=torch.bfloat16,
     bnb_4bit_use_double_quant=True,
 )
+# device_map={"": 0} forces the ENTIRE model onto GPU 0. "auto" will silently
+# CPU-OFFLOAD layers when memory is tight -- every step then round-trips through
+# CPU and you get ~300s/step (the overnight-run disaster). If this OOMs, the fix
+# is a smaller model (3B) or batch, NOT offloading.
 model = AutoModelForCausalLM.from_pretrained(
-    MODEL, quantization_config=bnb, device_map="auto", torch_dtype=torch.bfloat16)
+    MODEL, quantization_config=bnb, device_map={"": 0}, torch_dtype=torch.bfloat16)
 model = prepare_model_for_kbit_training(model)
 model.config.use_cache = False
 
@@ -73,23 +79,23 @@ collator = DataCollatorForCompletionOnlyLM(
 
 cfg = SFTConfig(
     output_dir=os.path.join(BASE, "weights", "qwen_sql_lora"),
-    num_train_epochs=2,                 # narrow domain -> 2-3 is plenty
-    # The fp32 cross-entropy logits tensor is bs*seq*vocab(152k). Keep bs*seq
-    # modest: bs2 x seq1280 -> ~1.6GB loss tensor (vs the ~3GB that OOM'd at
-    # bs2 x seq2816). Compact prompt makes seq short so bs2 is plenty fast.
+    num_train_epochs=2,                 # L4 + 30h affords 2 epochs; save_steps lets you pick the best (less-overfit) checkpoint
     per_device_train_batch_size=2,
     gradient_accumulation_steps=8,      # effective batch 16
     learning_rate=2e-4,
     lr_scheduler_type="cosine",
     warmup_ratio=0.03,
-    bf16=True,
+    bf16=True,                          # L4 (Ada) has bf16 tensor cores
     gradient_checkpointing=True,
-    logging_steps=10,
-    save_strategy="epoch",
-    eval_strategy="epoch",              # older trl: evaluation_strategy
-    load_best_model_at_end=True,        # keep best eval_loss epoch -> budget-safe
-    metric_for_best_model="eval_loss",
-    save_total_limit=2,
+    logging_steps=5,
+    # Save often so you never lose progress again, and so you can pick an
+    # earlier (less-overfit) checkpoint -- train loss hits ~0 by ~step 100, so
+    # a step-100-200 adapter likely generalizes better than the very end.
+    # Eval disabled during training (2599-example eval is slow); evaluate after.
+    save_strategy="steps",
+    save_steps=50,
+    eval_strategy="no",
+    save_total_limit=4,
     # MUST exceed system(~2.2k) + question + SQL, else the answer (which comes
     # last) is truncated and the completion-only collator masks everything ->
     # zero training signal. 3072 leaves comfortable room.
