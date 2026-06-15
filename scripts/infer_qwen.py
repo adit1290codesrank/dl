@@ -28,7 +28,9 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from peft import PeftModel
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MODEL = "Qwen/Qwen2.5-Coder-7B-Instruct"
+# MUST match the base the adapter was trained on (finetune_qwen.py) -- the LoRA
+# shapes are tied to the base hidden size (14B=5120, 7B=3584).
+MODEL = "Qwen/Qwen2.5-Coder-14B-Instruct"
 ADAPTER = os.path.join(BASE, "weights", "qwen_sql_lora")
 
 # Reuse the exact system prompt the model was fine-tuned with.
