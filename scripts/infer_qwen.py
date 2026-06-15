@@ -36,6 +36,7 @@ ADAPTER = os.path.join(BASE, "weights", "qwen_sql_lora")
 # Reuse the exact system prompt the model was fine-tuned with.
 sys.path.insert(0, os.path.join(BASE, "scripts"))
 from make_finetune_data import build_system_prompt  # noqa: E402
+from value_canon import canonicalize_sql  # noqa: E402
 
 
 def load_valid_identifiers():
@@ -171,7 +172,7 @@ def main():
             out = model.generate(**ids, max_new_tokens=256, do_sample=False,
                                  pad_token_id=tok.eos_token_id)
         gen = tok.decode(out[0][ids["input_ids"].shape[1]:], skip_special_tokens=True)
-        sql = tidy(gen)
+        sql = canonicalize_sql(tidy(gen))    # snap categorical values to exact DB spellings
         return sql, validate(sql, valid)
 
     def answer(q):
