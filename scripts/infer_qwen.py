@@ -158,8 +158,10 @@ def main():
     bnb = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4",
                              bnb_4bit_compute_dtype=torch.bfloat16,
                              bnb_4bit_use_double_quant=True)
+    # device_map={"": 0} loads straight to GPU 0 (same fast path training used,
+    # ~33s). "auto" stages through CPU / sets up offload hooks -> ~30x slower load.
     base = AutoModelForCausalLM.from_pretrained(
-        MODEL, quantization_config=bnb, device_map="auto", torch_dtype=torch.bfloat16)
+        MODEL, quantization_config=bnb, device_map={"": 0}, torch_dtype=torch.bfloat16)
     model = PeftModel.from_pretrained(base, ADAPTER)
     model.eval()
 
