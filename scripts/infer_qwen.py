@@ -182,6 +182,13 @@ def main():
         print("SQL  :", sql)
         print("WARN : not in schema:" , bad) if bad else print("OK   : all identifiers valid")
 
+    # One-time warmup: the FIRST generate() compiles/autotunes the CUDA +
+    # bitsandbytes 4-bit kernels (a few min on 14B). Do it upfront and labeled
+    # so it's not mistaken for a hang; every query after is fast.
+    print("Warming up CUDA / 4-bit kernels (one-time, ~couple min)...", flush=True)
+    gen_sql("warmup")
+    print("Ready.\n", flush=True)
+
     if args.bench:
         import io
         out_path = os.path.join(BASE, "bench_results.txt")
