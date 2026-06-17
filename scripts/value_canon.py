@@ -81,6 +81,12 @@ def canonicalize_sql(sql):
 
     def fix_in(m):
         col, body = m.group(1), m.group(2)
+        # ONLY rewrite categorical columns with a plain value list. Leave
+        # everything else untouched -- crucially subqueries (col IN (SELECT ...))
+        # and non-categorical IN-lists, which this rebuild would otherwise
+        # flatten into a literal list and destroy.
+        if col not in CATEGORICAL or "select" in body.lower():
+            return m.group(0)
         vals = re.findall(r"'([^']*)'", body)
         joined = ", ".join(f"'{canon_value(col, v)[0]}'" for v in vals)
         return f"{col} IN ({joined})"
